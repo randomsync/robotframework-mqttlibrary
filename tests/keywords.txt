@@ -1,0 +1,27 @@
+| *Settings*    | *Value*
+| Library       | MQTTLibrary
+| Library       | BuiltIn
+
+| *Variables*       | *Value*
+| ${broker.uri}     | 127.0.0.1
+| ${broker.port}    | 1883
+| ${client.id}      | mqtt.test.client
+| ${topic}          | test/mqtt_test
+| ${sub.topic}      | test/mqtt_test_sub
+
+| *Keywords*    |
+| Publish to MQTT Broker and Disconnect
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${message}=${EMPTY}           | ${qos}=0
+| | ...         | ${retention}=${false}
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}
+| | Publish     | ${topic}      | ${message}        | ${qos}    | ${retention}
+| | Disconnect  |
+
+| Subscribe to MQTT Broker and Validate
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${client.id}=${client.id}
+| | ...         | ${topic}=${sub.topic}         | ${message}=${EMPTY}
+| | ...         | ${timeout}=1000
+| | Subscribe and Validate
+| | ...               | ${broker.uri} | ${client.id}  | ${topic}  | ${message}    | ${timeout}
