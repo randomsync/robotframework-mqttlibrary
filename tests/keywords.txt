@@ -3,7 +3,8 @@
 | Library       | BuiltIn
 
 | *Variables*       | *Value*
-| ${broker.uri}     | 127.0.0.1
+| ${broker.uri}     | iot.eclipse.org
+#| ${broker.uri}     | 127.0.0.1
 | ${broker.port}    | 1883
 | ${client.id}      | mqtt.test.client
 | ${topic}          | test/mqtt_test
@@ -20,8 +21,11 @@
 | | Disconnect  |
 
 | Subscribe to MQTT Broker and Validate
-| | [Arguments] | ${broker.uri}=${broker.uri}   | ${client.id}=${client.id}
-| | ...         | ${topic}=${sub.topic}         | ${message}=${EMPTY}
-| | ...         | ${timeout}=1000
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${message}=${EMPTY}           | ${qos}=1
+| | ...         | ${timeout}=1s
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
 | | Subscribe and Validate
-| | ...               | ${broker.uri} | ${client.id}  | ${topic}  | ${message}    | ${timeout}
+| | ...         | ${topic}      | ${qos}        | ${message}        | ${timeout}
+| | Disconnect  |
