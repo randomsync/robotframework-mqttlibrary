@@ -13,14 +13,14 @@
 | Connect to a broker with default port and client id
 | | ${mqttc}    | Connect   | ${broker.uri}
 | | Should Match Regexp     | ${mqttc._client_id}   | ^paho/[0-9A-f]{18}
-| | Disconnect
+| | [Teardown]  | Disconnect
 
 | Connect to a broker with default port and specified client id
 | | ${mqttc}    | Connect   | ${broker.uri} | client_id=${client.id}
 | | Should be equal as strings  | ${mqttc._client_id}   | ${client.id}
-| | Disconnect
+| | [Teardown]  | Disconnect
 
 | Connect to a broker with specified port and client id
 | | ${mqttc}    | Connect   | ${broker.uri} | ${broker.port}    | ${client.id}
 | | Should be equal as strings  | ${mqttc._client_id}   | ${client.id}
-| | Disconnect
+| | [Teardown]  | Disconnect
