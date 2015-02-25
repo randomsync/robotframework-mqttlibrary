@@ -11,3 +11,4 @@ class MQTTLibrary(MQTTKeywords):
     """
 
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
+    ROBOT_LIBRARY_VERSION = __version__

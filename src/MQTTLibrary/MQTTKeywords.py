@@ -66,6 +66,45 @@ class MQTTKeywords(object):
             % (topic, message, qos, retain), 'INFO')
         self._mqttc.publish(topic, message, int(qos), retain)
 
+    def subscribe(self, topic, qos, timeout=1, limit=1):
+        """ Subscribe to a topic and return a list of message payloads received
+            within the specified time.
+
+        `topic` topic to subscribe to
+
+        `qos` quality of service for the subscription
+
+        `timeout` duration of subscription
+
+        `limit` the max number of payloads that will be returned. Specify 0
+            for no limit
+
+        Examples:
+
+        Subscribe and get a list of all messages received within 5 seconds
+        | ${messages}= | Subscribe | test/test | qos=1 | timeout=5 | limit=0 |
+
+        Subscribe and get 1st message received within 60 seconds
+        | @{messages}= | Subscribe | test/test | qos=1 | timeout=60 | limit=1 |
+        | Length should be | ${messages} | 1 |
+
+        """
+        seconds = convert_time(timeout)
+        self._messages = []
+        limit = int(limit)
+
+        self.builtin.log('Subscribing to topic: %s' % topic, 'INFO')
+        self._mqttc.subscribe(str(topic), int(qos))
+        self._mqttc.on_message = self._on_message_list
+
+        timer_start = time.time()
+        while time.time() < timer_start + seconds:
+            if limit == 0 or len(self._messages) < limit:
+                self._mqttc.loop()
+            else:
+                break
+        return self._messages
+
     def subscribe_and_validate(self, topic, qos, payload, timeout=1):
 
         """ Subscribe to a topic and validate that the specified payload is
@@ -104,6 +143,18 @@ class MQTTKeywords(object):
         if not self._verified:
             raise AssertionError("The expected payload didn't arrive in the topic")
 
+    def unsubscribe(self, topic):
+
+        """ Unsubscribe the client from the specified topic.
+
+        `topic` topic to unsubscribe from
+
+        Example:
+        | Unsubscribe | test/mqtt_test |
+
+        """
+        self._mqttc.unsubscribe(str(topic))
+
     def disconnect(self):
 
         """ Disconnect from MQTT Broker.
@@ -118,3 +169,8 @@ class MQTTKeywords(object):
         self.builtin.log('Received message: %s on topic: %s with QoS: %s'
             % (str(message.payload), message.topic, str(message.qos)), 'DEBUG')
         self._verified = re.match(self._payload, str(message.payload))
+
+    def _on_message_list(self, client, userdata, message):
+        self.builtin.log('Received message: %s on topic: %s with QoS: %s'
+            % (str(message.payload), message.topic, str(message.qos)), 'DEBUG')
+        self._messages.append(message.payload)
