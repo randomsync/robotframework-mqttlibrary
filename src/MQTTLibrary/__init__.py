@@ -1,7 +1,7 @@
 from MQTTKeywords import MQTTKeywords
 from version import VERSION
 
-_version_ = VERSION
+__version__ = VERSION
 
 
 class MQTTLibrary(MQTTKeywords):
