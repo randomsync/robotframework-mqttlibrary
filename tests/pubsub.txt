@@ -127,4 +127,4 @@
 | | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2 | qos=1
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}
 | | LOG         | ${messages}
-#| | Length Should Be            | ${messages}       | 0
+| | Length Should Be            | ${messages}       | 0
