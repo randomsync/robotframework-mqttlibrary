@@ -1,4 +1,5 @@
 import paho.mqtt.client as mqtt 
+import paho.mqtt.publish as publish
 import robot
 import time
 import re
@@ -164,6 +165,71 @@ class MQTTKeywords(object):
 
         """
         self._mqttc.disconnect()
+
+    def publish_single(self, topic, payload=None, qos=0, retain=False,
+            hostname="localhost", port=1883, client_id="", keepalive=60,
+            will=None, auth=None, tls=None, protocol=mqtt.MQTTv31):
+
+        """ Publish a single message and disconnect.
+
+        `topic` topic to which the message will be published
+
+        `payload` message payload to publish (default None)
+
+        `qos` qos of the message (default 0)
+
+        `retain` retain flag (True or False, default False)
+
+        `hostname` MQTT broker host (default localhost)
+
+        `port` broker port (default 1883)
+
+        `client_id` if not specified, a random id is generated
+
+        `keepalive` keepalive timeout value for client
+
+        `will` a dict containing will parameters for client:
+            will = {'topic': "<topic>", 'payload':"<payload">, 'qos':<qos>,
+                'retain':<retain>}
+
+        `auth` a dict containing authentication parameters for the client:
+            auth = {'username':"<username>", 'password':"<password>"}
+
+        `tls` a dict containing TLS configuration parameters for the client:
+            dict = {'ca_certs':"<ca_certs>", 'certfile':"<certfile>",
+                'keyfile':"<keyfile>", 'tls_version':"<tls_version>",
+                'ciphers':"<ciphers">}
+
+        `protocol` MQTT protocol version (MQTTv31 or MQTTv311)
+
+        """
+        self.builtin.log('Publishing to: %s:%s, topic: %s, payload: %s, qos: %s' % (hostname, port, topic, payload, qos), 'INFO')
+        publish.single(topic, payload, qos, retain, hostname, port,
+            client_id, keepalive, will, auth, tls, protocol)
+
+    def publish_multiple(self, msgs, hostname="localhost", port=1883,
+            client_id="", keepalive=60, will=None, auth=None,
+            tls=None, protocol=mqtt.MQTTv31):
+
+        """ Publish multiple messages and disconnect.
+
+        `msgs` a list of messages to publish. Each message is either a dict
+                or a tuple. If a dict, it must be of the form:
+                msg = {'topic':"<topic>", 'payload':"<payload>", 'qos':<qos>,
+                        'retain':<retain>}
+                Only the topic must be present. Default values will be used
+                for any missing arguments. If a tuple, then it must be of the
+                form:
+                ("<topic>", "<payload>", qos, retain)
+
+                See `publish_single` for the description of hostname, port,
+                client_id, keepalive, will, auth, tls, protocol.
+
+        """
+        self.builtin.log('Publishing to: %s:%s, msgs: %s' %
+            (hostname, port, msgs), 'INFO')
+        publish.multiple(msgs, hostname, port, client_id, keepalive,
+            will, auth, tls, protocol)
 
     def _on_message(self, client, userdata, message):
         self.builtin.log('Received message: %s on topic: %s with QoS: %s'
