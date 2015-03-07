@@ -136,6 +136,11 @@ class MQTTKeywords(object):
             if limit == 0 or len(self._messages) < limit:
                 self._mqttc.loop()
             else:
+                # workaround for client to ack the publish. Otherwise,
+                # it seems that if client disconnects quickly, broker
+                # will not get the ack and publish the message again on
+                # next connect.
+                time.sleep(1)
                 break
         return self._messages
 

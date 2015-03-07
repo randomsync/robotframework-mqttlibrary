@@ -48,6 +48,5 @@
 | | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
 | | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
 | | Unsubscribe | ${topic}
-| | Sleep       | 1s
 | | [Teardown]  | Disconnect
 | | [Return]    | @{messages}
