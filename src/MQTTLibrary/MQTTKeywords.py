@@ -3,8 +3,8 @@ import robot
 import time
 import re
 
-from robot.libraries.BuiltIn import BuiltIn
 from robot.libraries.DateTime import convert_time
+from robot.api import logger
 
 class MQTTKeywords(object):
 
@@ -13,7 +13,6 @@ class MQTTKeywords(object):
     LOOP_TIMEOUT = '5 seconds'
 
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
-        self.builtin = BuiltIn()
         self._loop_timeout = convert_time(loop_timeout)
         #self._mqttc = mqtt.Client()
 
@@ -42,7 +41,7 @@ class MQTTKeywords(object):
         | Connect | 127.0.0.1 | clean_session=${false} |
 
         """
-        self.builtin.log('Connecting to %s at port %s' % (broker, port), 'INFO')
+        logger.info('Connecting to %s at port %s' % (broker, port))
         self._connected = False
         self._unexpected_disconnect = False
         self._mqttc = mqtt.Client(client_id, clean_session)
@@ -61,7 +60,7 @@ class MQTTKeywords(object):
 
         if self._unexpected_disconnect:
             raise RuntimeError("The client disconnected unexpectedly")
-        self.builtin.log('client_id: %s' % self._mqttc._client_id, 'DEBUG')
+        logger.debug('client_id: %s' % self._mqttc._client_id)
         return self._mqttc
 
     def publish(self, topic, message=None, qos=0, retain=False):
@@ -83,13 +82,13 @@ class MQTTKeywords(object):
         | Publish | test/test | test message | 1 | ${false} |
 
         """
-        self.builtin.log('Publish topic: %s, message: %s, qos: %s, retain: %s'
-            % (topic, message, qos, retain), 'INFO')
+        logger.info('Publish topic: %s, message: %s, qos: %s, retain: %s'
+            % (topic, message, qos, retain))
         self._mid = -1
         self._mqttc.on_publish = self._on_publish
         result, mid = self._mqttc.publish(topic, message, int(qos), retain)
         if result != 0:
-            self.builtin.log('Error publishing: %s' % result, 'FAIL')
+            raise RuntimeError('Error publishing: %s' % result)
 
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
@@ -98,7 +97,7 @@ class MQTTKeywords(object):
             self._mqttc.loop()
 
         if mid != self._mid:
-            self.builtin.log('mid wasn\'t matched: %s' % mid, 'WARN')
+            logger.warn('mid wasn\'t matched: %s' % mid)
 
     def subscribe(self, topic, qos, timeout=1, limit=1):
         """ Subscribe to a topic and return a list of message payloads received
@@ -127,7 +126,7 @@ class MQTTKeywords(object):
         self._messages = []
         limit = int(limit)
 
-        self.builtin.log('Subscribing to topic: %s' % topic, 'INFO')
+        logger.info('Subscribing to topic: %s' % topic)
         self._mqttc.subscribe(str(topic), int(qos))
         self._mqttc.on_message = self._on_message_list
 
@@ -168,7 +167,7 @@ class MQTTKeywords(object):
         seconds = convert_time(timeout)
         self._verified = False
 
-        self.builtin.log('Subscribing to topic: %s' % topic, 'INFO')
+        logger.info('Subscribing to topic: %s' % topic)
         self._mqttc.subscribe(str(topic), int(qos))
         self._payload = str(payload)
         self._mqttc.on_message = self._on_message
@@ -202,8 +201,7 @@ class MQTTKeywords(object):
             self._mqttc.loop()
 
         if not self._unsubscribed:
-            self.builtin.log('Client didn\'t receive an unsubscribe callback',
-                'WARN')
+            logger.warn('Client didn\'t receive an unsubscribe callback')
 
     def disconnect(self):
 
@@ -228,13 +226,13 @@ class MQTTKeywords(object):
             raise RuntimeError("The client disconnected unexpectedly")
 
     def _on_message(self, client, userdata, message):
-        self.builtin.log('Received message: %s on topic: %s with QoS: %s'
-            % (str(message.payload), message.topic, str(message.qos)), 'DEBUG')
+        logger.debug('Received message: %s on topic: %s with QoS: %s'
+            % (str(message.payload), message.topic, str(message.qos)))
         self._verified = re.match(self._payload, str(message.payload))
 
     def _on_message_list(self, client, userdata, message):
-        self.builtin.log('Received message: %s on topic: %s with QoS: %s'
-            % (str(message.payload), message.topic, str(message.qos)), 'DEBUG')
+        logger.debug('Received message: %s on topic: %s with QoS: %s'
+            % (str(message.payload), message.topic, str(message.qos)))
         self._messages.append(message.payload)
 
     def _on_connect(self, client, userdata, flags, rc):
