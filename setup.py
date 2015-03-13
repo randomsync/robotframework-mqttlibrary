@@ -22,9 +22,9 @@ setup(
     author_email      = 'gaurav@randomsync.net',
     license           = 'Apache License 2.0',
     classifiers       = [
-        'Development Status :: 1 - Planning',
+        'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
         'Topic :: Software Development :: Testing',
     ],
     keywords          = 'robotframework testing testautomation mqtt',

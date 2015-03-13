@@ -18,7 +18,7 @@
 | | ...         | ${retention}=${false}
 | | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}
 | | Publish     | ${topic}      | ${message}        | ${qos}    | ${retention}
-| | Disconnect  |
+| | [Teardown]  | Disconnect
 
 | Subscribe to MQTT Broker and Validate
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
@@ -28,4 +28,25 @@
 | | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
 | | Subscribe and Validate
 | | ...         | ${topic}      | ${qos}        | ${message}        | ${timeout}
-| | Disconnect  |
+| | [Teardown]  | Disconnect
+
+| Subscribe and Get Messages
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${qos}=1                      | ${timeout}=1s
+| | ...         | ${limit}=1
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
+| | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | [Teardown]  | Disconnect
+| | [Return]    | @{messages}
+
+| Subscribe and Unsubscribe
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${qos}=1                      | ${timeout}=1s
+| | ...         | ${limit}=1
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
+| | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | Unsubscribe | ${topic}
+| | [Teardown]  | Disconnect
+| | [Return]    | @{messages}
