@@ -8,3 +8,8 @@ install:
 
 script:
   - pybot -P src tests
+
+branches:
+  only:
+    - master
+    - dev
