@@ -3,6 +3,7 @@ import paho.mqtt.publish as publish
 import robot
 import time
 import re
+import json
 
 from robot.libraries.DateTime import convert_time
 from robot.api import logger
@@ -16,8 +17,67 @@ class MQTTKeywords(object):
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
         #self._mqttc = mqtt.Client()
+		
+	def on_message(clnt, userdata, msg):
+		print(msg.topic+" "+str(msg.payload))
 
-    def connect(self, broker, port=1883, client_id="", clean_session=True):
+    def ssl_connect(self, broker, username, password, certfile, port=1883, client_id="", clean_session=True):
+
+        """ Connect to an MQTT broker. This is a pre-requisite step for publish
+        and subscribe keywords.
+
+        `broker` MQTT broker host
+        
+        `username` MQTT username to give to the server
+        
+        `password` MQTT password to give to the server
+        
+        `certfile` relative or absolute path to certfile to provide to the server
+
+        `port` broker port (default 1883)
+
+        `client_id` if not specified, a random id is generated
+
+        `clean_session` specifies the clean session flag for the connection
+        
+        
+        Returns:
+        
+        Returns the last return code provided by the server
+
+        Examples:
+        
+        Connect to a broker with a username, password and certfile
+        | SSL Connect | 127.0.0.1 | jordan | Password | privateKey.pem | 8883
+
+        """
+        logger.info('Connecting to %s at port %s with %s and %s' % (broker, port, username, json.dumps(password)))
+        self._connected = False
+        self._unexpected_disconnect = False
+        
+        self._mqttc = mqtt.Client(client_id, clean_session)
+		
+        # set callbacks
+        self._mqttc.on_connect = self._on_connect
+        self._mqttc.on_disconnect = self._on_disconnect
+		
+        self._mqttc.username_pw_set(username, json.dumps(password))
+        self._mqttc.tls_set(certfile)
+        self._mqttc.connect(broker, int(port))
+		
+        timer_start = time.time()
+        returnCode = 0
+        while time.time() < timer_start + self._loop_timeout:
+            logger.info('Connected=' + str(self._connected))
+            logger.info('Disconnected=' + str(self._unexpected_disconnect))
+            if self._connected or self._unexpected_disconnect:
+                break;
+            returnCode = self._mqttc.loop()
+
+        logger.debug('client_id: %s' % self._mqttc._client_id)
+        return returnCode
+        
+    def connect(self, broker, username, password, port=1883, client_id="", clean_session=True):
 
         """ Connect to an MQTT broker. This is a pre-requisite step for publish
         and subscribe keywords.
@@ -40,9 +100,12 @@ class MQTTKeywords(object):
 
         Connect to a broker with clean session flag set to false
         | Connect | 127.0.0.1 | clean_session=${false} |
+        
+        Connect to a broker with a username and password
+       | Connect | 127.0.0.1 | testUser | Password
 
         """
-        logger.info('Connecting to %s at port %s' % (broker, port))
+        logger.info('Connecting to %s at port %s with %s and %s' % (broker, port, username, password))
         self._connected = False
         self._unexpected_disconnect = False
         self._mqttc = mqtt.Client(client_id, clean_session)
@@ -51,6 +114,7 @@ class MQTTKeywords(object):
         self._mqttc.on_connect = self._on_connect
         self._mqttc.on_disconnect = self._on_disconnect
 
+        self._mqttc.username_pw_set(username, password)
         self._mqttc.connect(broker, int(port))
 
         timer_start = time.time()
