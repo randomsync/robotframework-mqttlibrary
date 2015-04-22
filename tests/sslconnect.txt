@@ -1,0 +1,27 @@
+*** Settings ***
+| Library       | MQTTLibrary
+| Test Timeout  | 30 seconds
+
+
+*** Variables ***
+| ${broker.uri}     | test.mosquitto.org
+| ${broker.port}    | 8883
+| ${client.id}      | test.client
+| ${certFile}       | mosquitto.org.crt
+
+| *Test Cases*
+| Connect to a ssl broker using a cert file
+| | ${mqttc}    | Create Client   | ${client.id}
+| | ${mqttc}    | Set TLS | ${mqttc} | ${certFile}
+| | ${returnCode}    | SSL Connect | ${mqttc} | ${broker.uri} | ${broker.port}
+| | Should Be Equal As Integers | 0 | ${returnCode}
+| | [Teardown]  | Disconnect
+
+| Connect to a ssl broker using a cert file and username/pass
+| | ${mqttc}    | Create Client   | ${client.id}
+| | ${mqttc}    | Set TLS | ${mqttc} | ${certFile}
+| | ${mqttc}    | Set Username And Password | ${mqttc} | testuser | testpass
+| | ${returnCode}    | SSL Connect | ${mqttc} | ${broker.uri} | ${broker.port}
+#Expected to fail since it is wrong username/pass
+| | Should Be Equal As Integers | 5 | ${returnCode}
+| | [Teardown]  | Disconnect
