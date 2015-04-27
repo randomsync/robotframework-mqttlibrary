@@ -11,17 +11,30 @@
 
 | *Test Cases*
 | Connect to a ssl broker using a cert file
-| | ${mqttc}    | Create Client   | ${client.id}
-| | ${mqttc}    | Set TLS | ${mqttc} | ${certFile}
-| | ${returnCode}    | SSL Connect | ${mqttc} | ${broker.uri} | ${broker.port}
+| | Initialize | ${client.id}
+| | Set TLS | ${certFile}
+| | ${returnCode} | Connect | ${broker.uri} | ${broker.port} | returnCode=True
 | | Should Be Equal As Integers | 0 | ${returnCode}
 | | [Teardown]  | Disconnect
 
-| Connect to a ssl broker using a cert file and username/pass
-| | ${mqttc}    | Create Client   | ${client.id}
-| | ${mqttc}    | Set TLS | ${mqttc} | ${certFile}
-| | ${mqttc}    | Set Username And Password | ${mqttc} | testuser | testpass
-| | ${returnCode}    | SSL Connect | ${mqttc} | ${broker.uri} | ${broker.port}
-#Expected to fail since it is wrong username/pass
+| Connect to a ssl broker using a cert file and username/pass and verify return code
+| | Initialize | ${client.id}
+| | Set TLS | ${certFile}
+| | Set Username And Password | testuser | testpass
+| | ${returnCode} | Connect | ${broker.uri} | ${broker.port} | returnCode=True
 | | Should Be Equal As Integers | 5 | ${returnCode}
+| | [Teardown]  | Disconnect
+
+| Connect to a ssl broker using a cert file and verify client id
+| | Initialize | ${client.id}
+| | Set TLS | ${certFile}
+| | ${mqttc} | Connect | ${broker.uri} | ${broker.port}
+| | Should be equal as strings | ${mqttc._client_id} | ${client.id}
+| | [Teardown]  | Disconnect
+
+| Connect to a ssl broker using a cert file and username/pass and verify error is thrown
+| | Initialize | ${client.id}
+| | Set TLS | ${certFile}
+| | Set Username And Password | testuser | testpass
+| | ${msg} | Run Keyword And Expect Error | The client disconnected unexpectedly | Connect | ${broker.uri} | ${broker.port}
 | | [Teardown]  | Disconnect

@@ -13,15 +13,13 @@ class MQTTKeywords(object):
     # Timeout used for all blocking loop* functions. This serves as a
     # safeguard to not block forever, in case of unexpected/unhandled errors
     LOOP_TIMEOUT = '5 seconds'
+    _mqttc = None
 
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
         #self._mqttc = mqtt.Client()
-		
-	def on_message(clnt, userdata, msg):
-		print(msg.topic+" "+str(msg.payload))
         
-    def create_client(self, client_id="", clean_session=True):
+    def initialize(self, client_id="", clean_session=True, userdata=None, protocol=mqtt.MQTTv311):
     
         """ Create a MQTT client that can have a username/password and
             TLS info added to it            
@@ -45,15 +43,13 @@ class MQTTKeywords(object):
         self._connected = False
         self._unexpected_disconnect = False
         
-        self._mqttc = mqtt.Client(client_id, clean_session)
+        self._mqttc = mqtt.Client(client_id, clean_session, userdata, protocol)
 		
         # set callbacks
         self._mqttc.on_connect = self._on_connect
         self._mqttc.on_disconnect = self._on_disconnect
         
-        return self._mqttc
-        
-    def set_tls(self, mqttc, certs, certFile=None, keyFile=None, reqCerts=ssl.CERT_REQUIRED, tlsVersion=ssl.PROTOCOL_TLSv1, ciphers=None):
+    def set_tls(self, certs, certFile=None, keyFile=None, reqCerts=ssl.CERT_REQUIRED, tlsVersion=ssl.PROTOCOL_TLSv1, ciphers=None):
     
         """ Sets the TLS info for provided mqtt client
         
@@ -64,10 +60,9 @@ class MQTTKeywords(object):
         
         """
         logger.info('Adding cert info %s, file %s, key %s, reqCerts %s, tlsVersion %s, ciphers %s' % (certs, certFile, keyFile, reqCerts, tlsVersion, ciphers))
-        mqttc.tls_set(certs, certfile=certFile, keyfile=keyFile, cert_reqs=reqCerts, tls_version=tlsVersion, ciphers=ciphers)
-        return mqttc
+        self._mqttc.tls_set(certs, certfile=certFile, keyfile=keyFile, cert_reqs=reqCerts, tls_version=tlsVersion, ciphers=ciphers)
         
-    def set_username_and_password(self, mqttc, username, password):
+    def set_username_and_password(self, username, password):
         
         """ Sets the username and password information for provided mqtt client
         
@@ -83,46 +78,9 @@ class MQTTKeywords(object):
         
         """
         logger.info('Adding username %s and password %s' % (username, password))
-        mqttc.username_pw_set(username, password)
-        return mqttc
-
-    def ssl_connect(self, mqttc, broker, port=1883):
-
-        """ Connect to an MQTT broker. This is a pre-requisite step for publish
-        and subscribe keywords.
-
-        `broker` MQTT broker host
+        self._mqttc.username_pw_set(username, password)
         
-        `mqttc` MQTT Client provided from Create Client
-        
-        `port` broker port (default 1883)
-        
-        Returns:
-        
-        Returns the last return code provided by the server
-
-        Examples:
-        
-        Connect to a broker with a provided client
-        | SSL Connect | 127.0.0.1 | MQTTC | 8883
-
-        """
-        logger.info('Connecting to %s at port %s' % (broker, port))
-        mqttc.connect(broker, int(port))
-		
-        timer_start = time.time()
-        returnCode = 0
-        while time.time() < timer_start + self._loop_timeout:
-            logger.info('Connected=' + str(self._connected))
-            logger.info('Disconnected=' + str(self._unexpected_disconnect))
-            if self._connected or self._unexpected_disconnect:
-                break;
-            returnCode = mqttc.loop()
-
-        logger.debug('client_id: %s' % mqttc._client_id)
-        return returnCode
-        
-    def connect(self, broker, port=1883, client_id="", clean_session=True):
+    def connect(self, broker, port=1883, client_id="", clean_session=True, returnCode=False):
 
         """ Connect to an MQTT broker. This is a pre-requisite step for publish
         and subscribe keywords.
@@ -148,22 +106,26 @@ class MQTTKeywords(object):
 
         """
         logger.info('Connecting to %s at port %s' % (broker, port))
-        self._connected = False
-        self._unexpected_disconnect = False
-        self._mqttc = mqtt.Client(client_id, clean_session)
+        if self._mqttc == None:
+            self._connected = False
+            self._unexpected_disconnect = False
+            self._mqttc = mqtt.Client(client_id, clean_session)
 
-        # set callbacks
-        self._mqttc.on_connect = self._on_connect
-        self._mqttc.on_disconnect = self._on_disconnect
+            # set callbacks
+            self._mqttc.on_connect = self._on_connect
+            self._mqttc.on_disconnect = self._on_disconnect
 
         self._mqttc.connect(broker, int(port))
 
         timer_start = time.time()
+        rc = 0
         while time.time() < timer_start + self._loop_timeout:
             if self._connected or self._unexpected_disconnect:
                 break;
-            self._mqttc.loop()
+            rc = self._mqttc.loop()
 
+        if returnCode:
+            return rc
         if self._unexpected_disconnect:
             raise RuntimeError("The client disconnected unexpectedly")
         logger.debug('client_id: %s' % self._mqttc._client_id)
