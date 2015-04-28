@@ -293,6 +293,8 @@ class MQTTKeywords(object):
             self._mqttc.loop()
         if self._unexpected_disconnect:
             raise RuntimeError("The client disconnected unexpectedly")
+            
+        self._mqttc = None
 
     def publish_single(self, topic, payload=None, qos=0, retain=False,
             hostname="localhost", port=1883, client_id="", keepalive=60,
