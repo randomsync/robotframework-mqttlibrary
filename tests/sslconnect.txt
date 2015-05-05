@@ -1,28 +1,30 @@
 *** Settings ***
 | Library       | MQTTLibrary
+| Library       | Collections
+| Resource      | keywords.txt
 | Test Timeout  | 30 seconds
-
 
 *** Variables ***
 | ${broker.uri}     | test.mosquitto.org
 | ${broker.port}    | 8883
 | ${client.id}      | test.client
 | ${certFile}       | mosquitto.org.crt
+| ${topic}          | test/mqtt_test
+| ${sub.topic}      | test/mqtt_test_sub
 
 | *Test Cases*
 | Connect to a ssl broker using a cert file
 | | Initialize | ${client.id}
 | | Set TLS | ${certFile}
-| | ${returnCode} | Connect | ${broker.uri} | ${broker.port} | returnCode=True
-| | Should Be Equal As Integers | 0 | ${returnCode}
+| | ${mqttc} | Connect | ${broker.uri} | ${broker.port}
+| | Should be equal as strings | ${mqttc._client_id} | ${client.id}
 | | [Teardown]  | Disconnect
 
 | Connect to a ssl broker using a cert file and username/pass and verify return code
 | | Initialize | ${client.id}
 | | Set TLS | ${certFile}
 | | Set Username And Password | testuser | testpass
-| | ${returnCode} | Connect | ${broker.uri} | ${broker.port} | returnCode=True
-| | Should Be Equal As Integers | 5 | ${returnCode}
+| | ${msg} | Run Keyword And Expect Error | The client disconnected unexpectedly | Connect | ${broker.uri} | ${broker.port}
 | | [Teardown]  | Disconnect
 
 | Connect to a ssl broker using a cert file and verify client id
@@ -38,3 +40,20 @@
 | | Set Username And Password | testuser | testpass
 | | ${msg} | Run Keyword And Expect Error | The client disconnected unexpectedly | Connect | ${broker.uri} | ${broker.port}
 | | [Teardown]  | Disconnect
+
+| Publish a single message and disconnect
+| | Initialize | ${client.id}
+| | Set TLS | ${certFile}
+| | ${mqttc} | Connect | ${broker.uri} | ${broker.port}
+| | Should be equal as strings | ${mqttc._client_id} | ${client.id}
+| | ${time}     | Get Time      | epoch
+| | ${message}  | Catenate      | test message      | ${time}
+| | Publish Single              | topic=${topic}    | payload=${message}
+| | ...                         | hostname=${broker.uri}
+
+| Publish multiple messages and disconnect
+| | ${msg1} | Create Dictionary | topic=${topic}    | payload=message 1
+| | ${msg2} | Create Dictionary | topic=${topic}    | payload=message 2
+| | ${msg3} | Create Dictionary | topic=${topic}    | payload=message 3
+| | @{msgs} | Create List       | ${msg1} | ${msg2} | ${msg3}
+| | Publish Multiple            | msgs=${msgs}      | hostname=${broker.uri}

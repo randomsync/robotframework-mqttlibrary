@@ -1,0 +1,188 @@
+| *Settings*    | *Value*
+| Library       | MQTTLibrary
+| Library       | BuiltIn
+| Test Timeout  | 30 seconds
+
+| *Variables*       | *Value*
+| ${broker.uri}     | test.mosquitto.org
+| ${broker.port}    | 8883
+| ${client.id}      | test.client
+| ${certFile}       | mosquitto.org.crt
+| ${topic}          | test/mqtt_test
+| ${sub.topic}      | test/mqtt_test_sub
+
+| *Test Cases*
+| Publish a non-empty message
+| | ${time}     | Get Time      | epoch
+| | ${message}  | Catenate      | test message  | ${time}
+| | Publish to MQTT Broker and Disconnect       | message=${message}
+
+| Publish an empty message
+| | Publish to MQTT Broker and Disconnect
+
+| Publish a message with QOS 1 and validate that the message is received
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | ${message}  | Set Variable  | subscription test message
+| |  Run Keyword And Expect Error               | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | client.id=${client}   | topic=${topic}        | message=${message}
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=${message}    | qos=1
+| | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${message}
+
+| Publish multiple messages and confirm that validation succeeds only after correct message is published
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | ${message}  | Set Variable  | subscription test message
+| |  Run Keyword And Expect Error               | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | client.id=${client}   | topic=${topic}        | message=${message}
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=message1      | qos=1
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=message2      | qos=1
+| |  Run Keyword And Expect Error               | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | client.id=${client}   | topic=${topic}        | message=${message}
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=${message}    | qos=1
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=message3      | qos=1
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=message4      | qos=1
+| | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${message}
+
+| Publish an empty message with QOS 1 and validate
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| |  Run Keyword And Expect Error               | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | client.id=${client}     | topic=${topic}
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}          | qos=1
+| | Subscribe to MQTT Broker and Validate       | client.id=${client}     | topic=${topic}
+
+| Publish and validate with regular expression
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | ${message}  | Set Variable  | subscription test message
+| | ${regex}    | Set Variable  | ^subscription [test]{4} message$
+| |  Run Keyword And Expect Error               | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | client.id=${client}   | topic=${topic}        | message=whatever
+| | Publish to MQTT Broker and Disconnect       | topic=${topic}        | message=${message}    | qos=1
+| | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${regex}
+
+| Subscribe for the first time and validate that no messages are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}    | timeout=5s
+| | LOG         | ${messages}
+| | Length Should Be    | ${messages}   | 0
+
+| Subscribe, publish 1 message and validate it is received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message      | qos=1
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 1
+| | Should Be Equal As Strings  | @{messages}[0]    | test message
+
+| Subscribe with no limit, publish multiple messages and validate they are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message1 | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2 | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message3 | qos=1
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=0
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 3
+| | Should Be Equal As Strings  | @{messages}[0]    | test message1
+| | Should Be Equal As Strings  | @{messages}[1]    | test message2
+| | Should Be Equal As Strings  | @{messages}[2]    | test message3
+
+| Subscribe with limit
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message1 | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2 | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message3 | qos=1
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=1
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 1
+| | Should Be Equal As Strings  | @{messages}[0]    | test message1
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=2
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 2
+| | Should Be Equal As Strings  | @{messages}[0]    | test message2
+| | Should Be Equal As Strings  | @{messages}[1]    | test message3
+
+| Unsubscribe and validate no messages are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message1 | qos=1
+| | @{messages} | Subscribe and Unsubscribe | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2 | qos=1
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 0
+
+| *Keywords*    |
+| Publish to MQTT Broker and Disconnect
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${message}=${EMPTY}           | ${qos}=0
+| | ...         | ${retention}=${false}         | ${certFile}=${certFile}
+| | Initialize  | ${client.id}
+| | Set TLS     | ${certFile}
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}
+| | Publish     | ${topic}      | ${message}        | ${qos}    | ${retention}
+| | [Teardown]  | Disconnect
+
+| Subscribe to MQTT Broker and Validate
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${message}=${EMPTY}           | ${qos}=1
+| | ...         | ${timeout}=5s
+| | Initialize  | ${client.id}
+| | Set TLS     | ${certFile}
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
+| | Subscribe and Validate
+| | ...         | ${topic}      | ${qos}        | ${message}        | ${timeout}
+| | [Teardown]  | Disconnect
+
+| Subscribe and Get Messages
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${qos}=1                      | ${timeout}=5s
+| | ...         | ${limit}=1
+| | Initialize  | ${client.id}
+| | Set TLS     | ${certFile}
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
+| | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | [Teardown]  | Disconnect
+| | [Return]    | @{messages}
+
+| Subscribe and Unsubscribe
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${qos}=1                      | ${timeout}=5s
+| | ...         | ${limit}=1
+| | Initialize  | ${client.id}
+| | Set TLS     | ${certFile}
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client.id}  | ${false}
+| | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | Unsubscribe | ${topic}
+| | [Teardown]  | Disconnect
+| | [Return]    | @{messages}
