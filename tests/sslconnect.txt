@@ -42,18 +42,19 @@
 | | [Teardown]  | Disconnect
 
 | Publish a single message and disconnect
-| | Initialize | ${client.id}
-| | Set TLS | ${certFile}
-| | ${mqttc} | Connect | ${broker.uri} | ${broker.port}
-| | Should be equal as strings | ${mqttc._client_id} | ${client.id}
+| | ${tls}      | Create Dictionary | ca_certs      | ${certFile}
+| | ...                             | tls_version   | ${3}
 | | ${time}     | Get Time      | epoch
 | | ${message}  | Catenate      | test message      | ${time}
-| | Publish Single              | topic=${topic}    | payload=${message}
-| | ...                         | hostname=${broker.uri}
+| | Publish Single              | topic=${topic}   | payload=${message}
+| | ...         | hostname=${broker.uri} | port=${8883} | tls=${tls}
 
 | Publish multiple messages and disconnect
+| | ${tls}      | Create Dictionary | ca_certs      | ${certFile}
+| | ...                             | tls_version   | ${3}
 | | ${msg1} | Create Dictionary | topic=${topic}    | payload=message 1
 | | ${msg2} | Create Dictionary | topic=${topic}    | payload=message 2
 | | ${msg3} | Create Dictionary | topic=${topic}    | payload=message 3
 | | @{msgs} | Create List       | ${msg1} | ${msg2} | ${msg3}
 | | Publish Multiple            | msgs=${msgs}      | hostname=${broker.uri}
+| | ...         | port=${8883}  | tls=${tls}
