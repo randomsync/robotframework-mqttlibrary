@@ -15,7 +15,13 @@ class MQTTKeywords(object):
 
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
+        self._username = None
+        self._password = None
         #self._mqttc = mqtt.Client()
+
+    def set_username_and_password(self, username, password=None):
+        self._username = username
+        self._password = password
 
     def connect(self, broker, port=1883, client_id="", clean_session=True):
 
@@ -50,6 +56,9 @@ class MQTTKeywords(object):
         # set callbacks
         self._mqttc.on_connect = self._on_connect
         self._mqttc.on_disconnect = self._on_disconnect
+
+        if self._username:
+            self._mqttc.username_pw_set(self._username, self._password)
 
         self._mqttc.connect(broker, int(port))
 
