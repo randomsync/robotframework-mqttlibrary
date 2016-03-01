@@ -4,13 +4,8 @@ MQTTLibrary for Robot Framework
 .. image:: https://travis-ci.org/randomsync/robotframework-mqttlibrary.svg?branch=master
     :target: https://travis-ci.org/randomsync/robotframework-mqttlibrary
 
-.. image:: https://pypip.in/version/robotframework-mqttlibrary/badge.png?text=version
-   :target: https://pypi.python.org/pypi/robotframework-mqttlibrary/
-   :alt: Latest version
-
-.. image:: https://pypip.in/download/robotframework-mqttlibrary/badge.png
-   :target: https://pypi.python.org/pypi/robotframework-mqttlibrary/
-   :alt: Number of downloads
+.. image:: https://badge.fury.io/py/robotframework-mqttlibrary.svg
+    :target: https://badge.fury.io/py/robotframework-mqttlibrary
 
 MQTTLibrary is a `Robot Framework`_ library that provides keywords for testing on MQTT brokers. MQTT_ is a lightweight protocol for machine-to-machine communication, typically used for IoT messaging. This library uses the paho_ client library published by eclipse project.
 
