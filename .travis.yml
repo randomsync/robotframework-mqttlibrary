@@ -7,9 +7,4 @@ install:
   - "pip install -r requirements.txt"
 
 script:
-  - pybot -P src tests
-
-branches:
-  only:
-    - master
-    - dev
+  - pybot -P src -e local-only tests

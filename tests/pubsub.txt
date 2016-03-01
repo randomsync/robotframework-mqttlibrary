@@ -128,3 +128,23 @@
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 0
+
+| Publish to a broker that requires username, password authentication
+| | [Tags]      | local-only
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test
+| | Set username and password   | user1         | test1
+| | Connect     | 127.0.0.1     | 1883          | ${client}
+| | Publish     | ${topic}      | test message with username and password
+| | [Teardown]  | Disconnect
+
+| Publish to a broker that requires username, password authentication with invalid password
+| | [Tags]      | local-only
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test
+| | Set username and password   | user1         | test
+| | Run Keyword and expect error    | The client disconnected unexpectedly
+| | ...         | Connect     | 127.0.0.1     | 1883          | ${client}
+| | [Teardown]  | Disconnect
