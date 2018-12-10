@@ -125,7 +125,7 @@ class MQTTKeywords(object):
 
         `qos` quality of service for the subscription
 
-        `timeout` duration of subscription. Specify 0 to enable background looping
+        `timeout` duration of subscription. Specify 0 to enable background looping (async)
 
         `limit` the max number of payloads that will be returned. Specify 0
             for no limit
@@ -172,7 +172,7 @@ class MQTTKeywords(object):
     # Added by Jan Van Overwalle (7/12/2018)
     def listen(self, topic, timeout=1, limit=1):
         """ Listen to a topic and return a list of message payloads received
-            within the specified time.
+            within the specified time. Requires an async Subscribe to have been called previously.
 
         `topic` topic to listen to
 
