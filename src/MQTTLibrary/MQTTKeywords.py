@@ -124,7 +124,7 @@ class MQTTKeywords(object):
 
         `qos` quality of service for the subscription
 
-        `timeout` duration of subscription
+        `timeout` duration of subscription. Specify 0 to enable background looping
 
         `limit` the max number of payloads that will be returned. Specify 0
             for no limit
@@ -413,7 +413,7 @@ class MQTTKeywords(object):
         else:
             self._unexpected_disconnect = True
 
-    # Added by Jan Van Overwalle (7/12/2018)        
+    # Added by Jan Van Overwalle (7/12/2018)
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         self._subscribed = True
 
