@@ -280,6 +280,7 @@ class MQTTKeywords(object):
 
         """
         if self._looping_in_background:
+            logger.info('Closing background loop')
             self._mqttc.loop_stop()
             self._looping_in_background = False
 
