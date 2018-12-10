@@ -300,6 +300,10 @@ class MQTTKeywords(object):
         self._unexpected_disconnect = False
         self._mqttc.on_disconnect = self._on_disconnect
 
+        if self._looping_in_background:
+            self._mqttc.loop_stop()
+            self._looping_in_background = False
+
         self._mqttc.disconnect()
 
         timer_start = time.time()

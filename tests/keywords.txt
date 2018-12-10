@@ -40,6 +40,15 @@
 | | [Teardown]  | Disconnect
 | | [Return]    | @{messages}
 
+| Subscribe Async
+| | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
+| | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
+| | ...         | ${qos}=1                      | ${timeout}=0s
+| | ...         | ${limit}=1
+| | Connect     | ${broker.uri} | ${port}       | ${client.id}  | ${false}
+| | Subscribe   | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | [Teardown]  | Disconnect
+
 | Subscribe and Unsubscribe
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
 | | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
@@ -49,4 +58,10 @@
 | | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
 | | Unsubscribe | ${topic}
 | | [Teardown]  | Disconnect
+| | [Return]    | @{messages}
+
+| Listen and Get Messages
+| | [Arguments] | ${topic}=${topic}   | ${timeout}=1s
+| | ...         | ${limit}=1
+| | @{messages} | Listen     | ${topic} | ${timeout}    | ${limit}
 | | [Return]    | @{messages}
