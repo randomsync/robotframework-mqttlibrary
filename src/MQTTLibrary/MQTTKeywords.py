@@ -21,6 +21,7 @@ class MQTTKeywords(object):
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
         self._looping_in_background = False
+        self._messages = {}
         self._username = None
         self._password = None
         #self._mqttc = mqtt.Client()
@@ -140,7 +141,7 @@ class MQTTKeywords(object):
 
         """
         seconds = convert_time(timeout)
-        self._messages = []
+        self._messages[topic] = []
         limit = int(limit)
         self._subscribed = False
 
@@ -149,14 +150,15 @@ class MQTTKeywords(object):
         self._mqttc.subscribe(str(topic), int(qos))
         self._mqttc.on_message = self._on_message_list
 
-        if timeout == 0:
+        if seconds == 0:
+            logger.info('Starting background loop')
             self._mqttc.loop_start()
             self._looping_in_background = True
-            return self._messages
+            return self._messages[topic]
 
         timer_start = time.time()
         while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages) < limit:
+            if limit == 0 or len(self._messages[topic]) < limit:
                 self._mqttc.loop()
             else:
                 # workaround for client to ack the publish. Otherwise,
@@ -165,7 +167,7 @@ class MQTTKeywords(object):
                 # next connect.
                 time.sleep(1)
                 break
-        return self._messages
+        return self._messages[topic]
 
     # Added by Jan Van Overwalle (7/12/2018)
     def listen(self, topic, timeout=1, limit=1):
@@ -190,12 +192,17 @@ class MQTTKeywords(object):
 
         """
         if not self._subscribed:
+            logger.warn('Cannot listen when not subscribed to a topic')
+            return []
+
+        if topic not in self._messages:
+            logger.warn('Cannot listen when not subscribed to topic: %s' % topic)
             return []
 
         # If enough messages have already been gathered, return them
-        if limit != 0 and len(self._messages) >= limit:
-            messages = self._messages[:]  # Copy the list's contents
-            self._messages = []
+        if limit != 0 and len(self._messages[topic]) >= limit:
+            messages = self._messages[topic][:]  # Copy the list's contents
+            self._messages[topic] = []
             return messages[-limit:]
 
         seconds = convert_time(timeout)
@@ -204,7 +211,7 @@ class MQTTKeywords(object):
         logger.info('Listening on topic: %s' % topic)
         timer_start = time.time()
         while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages) < limit:
+            if limit == 0 or len(self._messages[topic]) < limit:
                 # If the loop is running in the background
                 # merely sleep here for a second or so and continue
                 # otherwise, do the loop ourselves
@@ -220,8 +227,8 @@ class MQTTKeywords(object):
                 time.sleep(1)
                 break
 
-        messages = self._messages[:]  # Copy the list's contents
-        self._messages = []
+        messages = self._messages[topic][:]  # Copy the list's contents
+        self._messages[topic] = []
         return messages[-limit:] if limit != 0 else messages
 
     def subscribe_and_validate(self, topic, qos, payload, timeout=1):
@@ -276,6 +283,9 @@ class MQTTKeywords(object):
             self._mqttc.loop_stop()
             self._looping_in_background = False
 
+        if topic in self._messages:
+            del self._messages[topic]
+
         self._unsubscribed = False
         self._mqttc.on_unsubscribe = self._on_unsubscribe
         self._mqttc.unsubscribe(str(topic))
@@ -299,10 +309,6 @@ class MQTTKeywords(object):
         self._disconnected = False
         self._unexpected_disconnect = False
         self._mqttc.on_disconnect = self._on_disconnect
-
-        if self._looping_in_background:
-            self._mqttc.loop_stop()
-            self._looping_in_background = False
 
         self._mqttc.disconnect()
 
@@ -405,7 +411,9 @@ class MQTTKeywords(object):
     def _on_message_list(self, client, userdata, message):
         logger.debug('Received message: %s on topic: %s with QoS: %s'
             % (str(message.payload), message.topic, str(message.qos)))
-        self._messages.append(message.payload)
+        if message.topic not in self._messages:
+            self._messages[message.topic] = []
+        self._messages[message.topic].append(message.payload)
 
     def _on_connect(self, client, userdata, flags, rc):
         self._connected = True if rc == 0 else False

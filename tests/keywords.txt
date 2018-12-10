@@ -47,6 +47,10 @@
 | | ...         | ${limit}=1
 | | Connect     | ${broker.uri} | ${port}       | ${client.id}  | ${false}
 | | Subscribe   | ${topic} | ${qos} | ${timeout}    | ${limit}
+
+| Unsubscribe Async
+| | [Arguments] | ${topic}=${topic}
+| | Unsubscribe | ${topic}
 | | [Teardown]  | Disconnect
 
 | Subscribe and Unsubscribe
