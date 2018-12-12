@@ -279,6 +279,12 @@ class MQTTKeywords(object):
         | Unsubscribe | test/mqtt_test |
 
         """
+        try:
+            tmp = self._mqttc
+        except AttributeError:
+            logger.info('No MQTT Client instance found so nothing to unsubscribe from.')
+            return
+
         if self._looping_in_background:
             logger.info('Closing background loop')
             self._mqttc.loop_stop()
@@ -307,6 +313,12 @@ class MQTTKeywords(object):
         | Disconnect |
 
         """
+        try:
+            tmp = self._mqttc
+        except AttributeError:
+            logger.info('No MQTT Client instance found so nothing to disconnect from.')
+            return
+
         self._disconnected = False
         self._unexpected_disconnect = False
         self._mqttc.on_disconnect = self._on_disconnect
