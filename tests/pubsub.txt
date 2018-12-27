@@ -148,3 +148,37 @@
 | | Run Keyword and expect error    | The client disconnected unexpectedly
 | | ...         | Connect     | 127.0.0.1     | 1883          | ${client}
 | | [Teardown]  | Disconnect
+
+| Subscribe async, publish 1 message, listen for and validate it is received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe Async | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message      | qos=1
+| | Sleep       | 5s
+| | @{messages} | Listen and Get Messages    | topic=${topic}
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 1
+| | Should Be Equal As Strings  | @{messages}[0]    | test message
+| | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
+
+| Subscribe async, publish several messages, listen for and validate they are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe Async | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message1      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message2      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message3      | qos=1
+| | Sleep       | 5s
+| | @{messages} | Listen and Get Messages    | topic=${topic} | limit=0
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 3
+| | Should Be Equal As Strings  | @{messages}[0]    | test message1
+| | Should Be Equal As Strings  | @{messages}[1]    | test message2
+| | Should Be Equal As Strings  | @{messages}[2]    | test message3
+| | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
