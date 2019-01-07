@@ -66,6 +66,12 @@
 | | Unsubscribe | ${topic}
 | | [Teardown]  | Disconnect
 
+| Unsubscribe Multiple and Disconnect
+| | [Arguments] | @{topics}
+| | :FOR    | ${topic}    | IN    | @{topics}
+| | | Unsubscribe    | ${topic}
+| | [Teardown]  | Disconnect
+
 | Subscribe and Unsubscribe
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
 | | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
