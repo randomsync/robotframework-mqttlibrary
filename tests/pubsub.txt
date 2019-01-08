@@ -148,3 +148,63 @@
 | | Run Keyword and expect error    | The client disconnected unexpectedly
 | | ...         | Connect     | 127.0.0.1     | 1883          | ${client}
 | | [Teardown]  | Disconnect
+
+| Subscribe async, publish 1 message, listen for and validate it is received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe Async | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message      | qos=1
+| | Sleep       | 5s
+| | @{messages} | Listen and Get Messages    | topic=${topic}
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 1
+| | Should Be Equal As Strings  | @{messages}[0]    | test message
+| | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
+
+| Subscribe async, publish several messages, listen for and validate they are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe Async | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message1      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message2      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic}    | message=test message3      | qos=1
+| | Sleep       | 5s
+| | @{messages} | Listen and Get Messages    | topic=${topic} | limit=0
+| | LOG         | ${messages}
+| | Length Should Be            | ${messages}       | 3
+| | Should Be Equal As Strings  | @{messages}[0]    | test message1
+| | Should Be Equal As Strings  | @{messages}[1]    | test message2
+| | Should Be Equal As Strings  | @{messages}[2]    | test message3
+| | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
+
+| Subscribe async to multiple topics, publish several messages, listen for them and validate they are received
+| | Sleep       | 1s
+| | ${time}     | Get Time      | epoch
+| | ${client1}  | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${client2}  | Catenate      | SEPARATOR=.   | robot.mqtt | ${time+1}
+| | ${topic1}   | Set Variable  | test/mqtt_test_sub1
+| | ${topic2}   | Set Variable  | test/mqtt_test_sub2
+| | Subscribe Async | client.id=${client1}   | topic=${topic1}
+| | Subscribe Async | client.id=${client2}   | topic=${topic2}
+| | Publish to MQTT Broker   | topic=${topic2}    | message=test message1      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic1}    | message=test message2      | qos=1
+| | Sleep       | 1s
+| | Publish to MQTT Broker   | topic=${topic2}    | message=test message3      | qos=1
+| | Sleep       | 5s
+| | @{messages1} | Listen and Get Messages    | topic=${topic1} | limit=0
+| | @{messages2} | Listen and Get Messages    | topic=${topic2} | limit=0
+| | LOG         | ${messages1}
+| | LOG         | ${messages2}
+| | Length Should Be            | ${messages1}       | 1
+| | Should Be Equal As Strings  | @{messages1}[0]    | test message2
+| | Length Should Be            | ${messages2}       | 2
+| | Should Be Equal As Strings  | @{messages2}[0]    | test message1
+| | Should Be Equal As Strings  | @{messages2}[1]    | test message3
+| | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    |${topic2}

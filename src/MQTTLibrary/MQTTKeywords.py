@@ -1,4 +1,4 @@
-import paho.mqtt.client as mqtt 
+import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import robot
 import time
@@ -15,6 +15,8 @@ class MQTTKeywords(object):
 
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
+        self._background_mqttc = None
+        self._messages = {}
         self._username = None
         self._password = None
         #self._mqttc = mqtt.Client()
@@ -24,7 +26,6 @@ class MQTTKeywords(object):
         self._password = password
 
     def connect(self, broker, port=1883, client_id="", clean_session=True):
-
         """ Connect to an MQTT broker. This is a pre-requisite step for publish
         and subscribe keywords.
 
@@ -74,7 +75,6 @@ class MQTTKeywords(object):
         return self._mqttc
 
     def publish(self, topic, message=None, qos=0, retain=False):
-
         """ Publish a message to a topic with specified qos and retained flag.
         It is required that a connection has been established using `Connect`
         keyword before using this keyword.
@@ -117,7 +117,7 @@ class MQTTKeywords(object):
 
         `qos` quality of service for the subscription
 
-        `timeout` duration of subscription
+        `timeout` duration of subscription. Specify 0 to enable background looping (async)
 
         `limit` the max number of payloads that will be returned. Specify 0
             for no limit
@@ -133,16 +133,24 @@ class MQTTKeywords(object):
 
         """
         seconds = convert_time(timeout)
-        self._messages = []
+        self._messages[topic] = []
         limit = int(limit)
+        self._subscribed = False
 
         logger.info('Subscribing to topic: %s' % topic)
+        self._mqttc.on_subscribe = self._on_subscribe
         self._mqttc.subscribe(str(topic), int(qos))
         self._mqttc.on_message = self._on_message_list
 
+        if seconds == 0:
+            logger.info('Starting background loop')
+            self._background_mqttc = self._mqttc
+            self._background_mqttc.loop_start()
+            return self._messages[topic]
+
         timer_start = time.time()
         while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages) < limit:
+            if limit == 0 or len(self._messages[topic]) < limit:
                 self._mqttc.loop()
             else:
                 # workaround for client to ack the publish. Otherwise,
@@ -151,10 +159,70 @@ class MQTTKeywords(object):
                 # next connect.
                 time.sleep(1)
                 break
-        return self._messages
+        return self._messages[topic]
+
+    def listen(self, topic, timeout=1, limit=1):
+        """ Listen to a topic and return a list of message payloads received
+            within the specified time. Requires an async Subscribe to have been called previously.
+
+        `topic` topic to listen to
+
+        `timeout` duration to listen
+
+        `limit` the max number of payloads that will be returned. Specify 0
+            for no limit
+
+        Examples:
+
+        Listen and get a list of all messages received within 5 seconds
+        | ${messages}= | Listen | test/test | timeout=5 | limit=0 |
+
+        Listen and get 1st message received within 60 seconds
+        | @{messages}= | Listen | test/test | timeout=60 | limit=1 |
+        | Length should be | ${messages} | 1 |
+
+        """
+        if not self._subscribed:
+            logger.warn('Cannot listen when not subscribed to a topic')
+            return []
+
+        if topic not in self._messages:
+            logger.warn('Cannot listen when not subscribed to topic: %s' % topic)
+            return []
+
+        # If enough messages have already been gathered, return them
+        if limit != 0 and len(self._messages[topic]) >= limit:
+            messages = self._messages[topic][:]  # Copy the list's contents
+            self._messages[topic] = []
+            return messages[-limit:]
+
+        seconds = convert_time(timeout)
+        limit = int(limit)
+
+        logger.info('Listening on topic: %s' % topic)
+        timer_start = time.time()
+        while time.time() < timer_start + seconds:
+            if limit == 0 or len(self._messages[topic]) < limit:
+                # If the loop is running in the background
+                # merely sleep here for a second or so and continue
+                # otherwise, do the loop ourselves
+                if self._background_mqttc:
+                    time.sleep(1)
+                else:
+                    self._mqttc.loop()
+            else:
+                # workaround for client to ack the publish. Otherwise,
+                # it seems that if client disconnects quickly, broker
+                # will not get the ack and publish the message again on
+                # next connect.
+                time.sleep(1)
+                break
+
+        messages = self._messages[topic][:]  # Copy the list's contents
+        self._messages[topic] = []
+        return messages[-limit:] if limit != 0 else messages
 
     def subscribe_and_validate(self, topic, qos, payload, timeout=1):
-
         """ Subscribe to a topic and validate that the specified payload is
         received within timeout. It is required that a connection has been
         established using `Connect` keyword. The payload can be specified as
@@ -192,7 +260,6 @@ class MQTTKeywords(object):
             raise AssertionError("The expected payload didn't arrive in the topic")
 
     def unsubscribe(self, topic):
-
         """ Unsubscribe the client from the specified topic.
 
         `topic` topic to unsubscribe from
@@ -201,6 +268,21 @@ class MQTTKeywords(object):
         | Unsubscribe | test/mqtt_test |
 
         """
+        try:
+            tmp = self._mqttc
+        except AttributeError:
+            logger.info('No MQTT Client instance found so nothing to unsubscribe from.')
+            return
+
+        if self._background_mqttc:
+            logger.info('Closing background loop')
+            self._background_mqttc.loop_stop()
+            self._background_mqttc = None
+
+        if topic in self._messages:
+            del self._messages[topic]
+
+        logger.info('Unsubscribing from topic: %s' % topic)
         self._unsubscribed = False
         self._mqttc.on_unsubscribe = self._on_unsubscribe
         self._mqttc.unsubscribe(str(topic))
@@ -214,13 +296,18 @@ class MQTTKeywords(object):
             logger.warn('Client didn\'t receive an unsubscribe callback')
 
     def disconnect(self):
-
         """ Disconnect from MQTT Broker.
 
         Example:
         | Disconnect |
 
         """
+        try:
+            tmp = self._mqttc
+        except AttributeError:
+            logger.info('No MQTT Client instance found so nothing to disconnect from.')
+            return
+
         self._disconnected = False
         self._unexpected_disconnect = False
         self._mqttc.on_disconnect = self._on_disconnect
@@ -326,7 +413,9 @@ class MQTTKeywords(object):
     def _on_message_list(self, client, userdata, message):
         logger.debug('Received message: %s on topic: %s with QoS: %s'
             % (str(message.payload), message.topic, str(message.qos)))
-        self._messages.append(message.payload)
+        if message.topic not in self._messages:
+            self._messages[message.topic] = []
+        self._messages[message.topic].append(message.payload)
 
     def _on_connect(self, client, userdata, flags, rc):
         self._connected = True if rc == 0 else False
@@ -337,6 +426,9 @@ class MQTTKeywords(object):
             self._unexpected_disconnect = False
         else:
             self._unexpected_disconnect = True
+
+    def _on_subscribe(self, client, userdata, mid, granted_qos):
+        self._subscribed = True
 
     def _on_unsubscribe(self, client, userdata, mid):
         self._unsubscribed = True
