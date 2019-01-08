@@ -129,17 +129,23 @@
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 0
 
-| Publish to a broker that requires username, password authentication
+| Publish and Subscribe to a broker that requires username, password authentication
 | | [Tags]      | auth
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test
+| | ${message}  | Set Variable  | subscription test message
 | | Set username and password   | authuser1     | password1
-| | Connect     | 127.0.0.1     | 1883          | ${client}
-| | Publish     | ${topic}      | test message with username and password
+| | Run Keyword And Expect Error                | The expected payload didn't arrive in the topic
+| | ... | Subscribe to MQTT Broker and Validate | broker.uri=127.0.0.1  | client.id=${client}
+| | ... | topic=${topic}        | message=${message}
+| | Connect     | 127.0.0.1
+| | Publish     | ${topic}      | test message with username and password   | qos=1
+| | Subscribe to MQTT Broker and Validate
+| | ...         | broker.uri=127.0.0.1  | client.id=${client}   | topic=${topic}        | message=test message with username and password
 | | [Teardown]  | Disconnect
 
-| Publish to a broker that requires username, password authentication with invalid password
+| Publish to a broker that requires authentication with invalid password
 | | [Tags]      | auth
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
