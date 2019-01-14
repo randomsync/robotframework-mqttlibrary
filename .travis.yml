@@ -14,7 +14,7 @@ deploy:
   - provider: pypi
     user: randomsync
     password:
-      secure: YubTYe0OHb7l0jvmbip/VnpdyfYgWPPwMw/i7tXTmeYgDyGAGiY2tJNQJ3DcAZWZxWKJQwjHeEE0RC152VISigcl0XSHwMfJJInuR53lBXUeGUZTam3febZ/+shfcOGmX+pIS3WktK3lk9wmdevGxJtg8O8bmTk63t2Zo8EIpGM=
+      secure: bbHK7u+MEnJ4YifZuSsF+O5HmIMvlfHaVd1u31k2Xdbj1aYsIz1tpD+iH4mYsinJ7YpnmfJAGArSPlemLEJC2kdRcnlSRQONtpUuooLG2PPQbwIgVtJh3gpxA06L1GxVoMeRWnCfqDttFSMIs7NTxA52UtalZbER5ALXB8StHn0=
     skip_cleanup: true
     on:
       repo: randomsync/robotframework-mqttlibrary
