@@ -51,7 +51,7 @@ Connect to the broker, subscribe and validate that a message is received:
 .. code-block:: robotframework
 
     *** Test Cases ***
-    Subsribe and Validate
+    Subscribe and Validate
         Connect                 127.0.0.1
         Subscribe and Validate  topic=test/mqtt_test    qos=1   payload=test
         [Teardown]              Disconnect
@@ -65,3 +65,25 @@ For general information about using test libraries with Robot Framework, see
 `Robot Framework User Guide`__.
 
 __ http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#using-test-libraries
+
+Contributing
+------------
+
+The keywords in this library are based on some of the methods available in eclipse paho client library. If you'd like to add keywords, see instructions_ on creating/updating libraries for Robot Framework.
+
+The tests are in ``tests`` folder and make use of Robot Framework itself. They are run automatically through travis when code is pushed to a branch. Most of the tests rely on the public mqtt broker at iot.eclipse.org, but some that validate authentication rely on a local broker. You can start a local broker with the provided configuration. You can then run the tests locally::
+
+    docker pull eclipse-mosquitto
+    docker run -d -p 1883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
+    pybot -P src tests
+
+
+Make sure to stop the docker container when it is no longer needed.
+
+.. _instructions: http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#creating-test-libraries
+
+License
+-------
+MQTTLibrary is open source software provided under the `Apache License 2.0`__.
+
+__ http://apache.org/licenses/LICENSE-2.0
