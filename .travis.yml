@@ -1,17 +1,29 @@
 language: python
-
 services:
-  - docker
-
+- docker
 python:
-  - "2.7"
-
+- '2.7'
 before_install:
-  - docker pull eclipse-mosquitto
-  - docker run -d -p 1883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
-
+- docker pull eclipse-mosquitto
+- docker run -d -p 1883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
 install:
-  - "pip install -r requirements.txt"
-
+- pip install -r requirements.txt
 script:
-  - pybot -P src tests
+- pybot -P src tests
+deploy:
+  - provider: pypi
+    user: randomsync
+    password:
+      secure: JGikGMEMaDKQr50zDtj/ZE9haWhoJgC8nJEaNwrj9PaHePwQQ7tvDsi453k1zd3T3yQrrVe8oKB1fqzLViwSv6y3LO4j12fVrKTYcLPJCUSJo+FV/m3aDwD5Ps1QjcSO16zRudqyikcn+ESoWHl3VnVJ2f9h/88/XBRpChpyZuk=
+    on:
+      repo: randomsync/robotframework-mqttlibrary
+      tags: true
+  - provider: releases
+    api_key:
+      secure: JAaqldr74M3AwKBUAyCoeEdeFotPgXlSO7ML6IWpv327UXsz/CZyZg3lDnFZEPyUfzr/pndUEN/M/eeHTuLMXVhv5rdaiMWS5pXXcs6mmR7irT5LK3giRJKJpfNWcOTCRkotHJRkMC7vOuHWhuLrJ0a7v4yxZyTcqBsQUq+Qk/Q=
+    file: dist/*
+    skip_cleanup: true
+    draft: true
+    on:
+      repo: randomsync/robotframework-mqttlibrary
+      tags: true
