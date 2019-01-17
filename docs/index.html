@@ -5,8 +5,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="-1">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta content="Robot Framework 3.0.3 (Python 2.7.15 on win32)" name="Generator">
-<link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKcAAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAAqAAAAAAAAAAAAAAAAAAAALIAAAD/AAAA4AAAANwAAADcAAAA3AAAANwAAADcAAAA3AAAANwAAADcAAAA4AAAAP8AAACxAAAAAAAAAKYAAAD/AAAAuwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC/AAAA/wAAAKkAAAD6AAAAzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN8AAAD/AAAA+gAAAMMAAAAAAAAAAgAAAGsAAABrAAAAawAAAGsAAABrAAAAawAAAGsAAABrAAAADAAAAAAAAADaAAAA/wAAAPoAAADDAAAAAAAAAIsAAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAANEAAAAAAAAA2gAAAP8AAAD6AAAAwwAAAAAAAAAAAAAAMgAAADIAAAAyAAAAMgAAADIAAAAyAAAAMgAAADIAAAAFAAAAAAAAANoAAAD/AAAA+gAAAMMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADaAAAA/wAAAPoAAADDAAAAAAAAADwAAAB8AAAAAAAAAGAAAABcAAAAAAAAAH8AAABKAAAAAAAAAAAAAAAAAAAA2gAAAP8AAAD6AAAAwwAAAAAAAADCAAAA/wAAACkAAADqAAAA4QAAAAAAAAD7AAAA/wAAALAAAAAGAAAAAAAAANoAAAD/AAAA+gAAAMMAAAAAAAAAIwAAAP4AAAD/AAAA/wAAAGAAAAAAAAAAAAAAAMkAAAD/AAAAigAAAAAAAADaAAAA/wAAAPoAAADDAAAAAAAAAAAAAAAIAAAAcAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAAAAAAA2gAAAP8AAAD7AAAAywAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN4AAAD/AAAAqwAAAP8AAACvAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALIAAAD/AAAAsgAAAAAAAAC5AAAA/wAAAMoAAADAAAAAwAAAAMAAAADAAAAAwAAAAMAAAADAAAAAwAAAAMkAAAD/AAAAvAAAAAAAAAAAAAAAAAAAAKwAAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAArQAAAAAAAAAAwAMAAIABAAAf+AAAP/wAAD/8AAAgBAAAP/wAAD/8AAA//AAAJIwAADHEAAA//AAAP/wAAB/4AACAAQAAwAMAAA==">
+<meta content="Robot Framework 2.8.7 (Python 2.7.14 on darwin)" name="Generator">
+<link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAAAIAAAAAAAAAAAAAEAAAAAAAAAAAAAAAJEBoACtnfgA5cYYAERsiAEx2lAAbKkQAcazBACZCVwAcM1cAK0ucAAMDBQAnQncASG+FABkoVQAyWmgA6f8SgvH/Ij99+GLyIinyJfn/Yi//KSLzUy9iZogpIld3/4JVVTkid7vyUjNVNVJEAGOZ6Z7pXwAABpmZkRiLAAAGiJZpmGAAAEEt3SXdxAAATC7o/u3EAAC8MRZpjasAAAY1VVVTYAAABKqqqqpAAAAADKqq4AAAAAAAv4sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMADAADgAwAA4AcAAOAHAADgBwAAwAcAAOAHAADgDwAA8A8AAPg/AAD+fwAA">
 <style media="all" type="text/css">
 body {
     background: white;
@@ -32,60 +32,49 @@ a:hover, a:active {
     text-decoration: underline;
     color: black;
 }
-a:hover {
-    text-decoration: underline !important;
-}
-.shortcuts {
+div.shortcuts {
     margin: 1em 0;
     font-size: 0.9em;
 }
-.shortcuts a {
+div.shortcuts a {
     display: inline-block;
     text-decoration: none;
     white-space: nowrap;
     color: black;
 }
-.shortcuts a::first-letter {
+div.shortcuts a::first-letter {
     font-weight: bold;
+    font-size: 1.05em;
     letter-spacing: 0.1em;
 }
-.normal-first-letter::first-letter {
-    font-weight: normal !important;
-    letter-spacing: 0 !important;
+div.shortcuts a:hover {
+    text-decoration: underline;
 }
-.keywords {
-    border: 1px solid #ccc;
+table.keywords {
+    border: 2px solid black;
     border-collapse: collapse;
     empty-cells: show;
     margin: 0.3em 0;
     width: 100%;
 }
-.keywords th, .keywords td {
-    border: 1px solid #ccc;
+table.keywords th, table.keywords td {
+    border: 2px solid black;
     padding: 0.2em;
     vertical-align: top;
 }
-.keywords th {
-    background: #ddd;
+table.keywords th {
+    background: #bbb;
     color: black;
 }
-.kw, .args, .tags {
+table.keywords td.kw {
     min-width: 100px;
     max-width: 20%;
-}
-td.kw a {
-    color: inherit;
-    text-decoration: none;
     font-weight: bold;
 }
-.args span {
+table.keywords td.args {
+    min-width: 100px;
+    max-width: 20%;
     font-style: italic;
-    padding: 0 0.1em;
-}
-.tags a {
-    color: inherit;
-    text-decoration: none;
-    padding: 0 0.1em;
 }
 .footer {
     font-size: 0.9em;
@@ -104,11 +93,11 @@ td.kw a {
     z-index: 1000;
 }
 #search {
-    width: 30em;
+    width:30em;
     display: none;
 }
 #open-search {
-    border: 2px solid #ccc;
+    border: 2px solid black;
     border-radius: 4px;
     width: 40px;
     height: 40px;
@@ -120,16 +109,16 @@ td.kw a {
     background-size: 24px 24px;
 }
 #open-search:hover {
-    background-color: #ccc;
+    background-color: yellow;
 }
 fieldset {
     background: white;
-    border: 2px solid #ccc;
+    border: 2px solid black;
     border-radius: 4px;
     padding: 6px 8px;
 }
 fieldset fieldset {
-    border: 1px solid #ccc;
+    border: 1px solid black;
     margin: 4px 0;
 }
 #search-title {
@@ -157,76 +146,6 @@ tr.no-match.hide-unmatched {
     display: none;
 }
 </style>
-<style media="all" type="text/css">
-/* Pygments 'default' style sheet. Generated with Pygments 2.1.3 using:
-     pygmentize -S default -f html -a .code > src/robot/htmldata/libdoc/pygments.css
-*/
-.code .hll { background-color: #ffffcc }
-.code  { background: #f8f8f8; }
-.code .c { color: #408080; font-style: italic } /* Comment */
-.code .err { border: 1px solid #FF0000 } /* Error */
-.code .k { color: #008000; font-weight: bold } /* Keyword */
-.code .o { color: #666666 } /* Operator */
-.code .ch { color: #408080; font-style: italic } /* Comment.Hashbang */
-.code .cm { color: #408080; font-style: italic } /* Comment.Multiline */
-.code .cp { color: #BC7A00 } /* Comment.Preproc */
-.code .cpf { color: #408080; font-style: italic } /* Comment.PreprocFile */
-.code .c1 { color: #408080; font-style: italic } /* Comment.Single */
-.code .cs { color: #408080; font-style: italic } /* Comment.Special */
-.code .gd { color: #A00000 } /* Generic.Deleted */
-.code .ge { font-style: italic } /* Generic.Emph */
-.code .gr { color: #FF0000 } /* Generic.Error */
-.code .gh { color: #000080; font-weight: bold } /* Generic.Heading */
-.code .gi { color: #00A000 } /* Generic.Inserted */
-.code .go { color: #888888 } /* Generic.Output */
-.code .gp { color: #000080; font-weight: bold } /* Generic.Prompt */
-.code .gs { font-weight: bold } /* Generic.Strong */
-.code .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
-.code .gt { color: #0044DD } /* Generic.Traceback */
-.code .kc { color: #008000; font-weight: bold } /* Keyword.Constant */
-.code .kd { color: #008000; font-weight: bold } /* Keyword.Declaration */
-.code .kn { color: #008000; font-weight: bold } /* Keyword.Namespace */
-.code .kp { color: #008000 } /* Keyword.Pseudo */
-.code .kr { color: #008000; font-weight: bold } /* Keyword.Reserved */
-.code .kt { color: #B00040 } /* Keyword.Type */
-.code .m { color: #666666 } /* Literal.Number */
-.code .s { color: #BA2121 } /* Literal.String */
-.code .na { color: #7D9029 } /* Name.Attribute */
-.code .nb { color: #008000 } /* Name.Builtin */
-.code .nc { color: #0000FF; font-weight: bold } /* Name.Class */
-.code .no { color: #880000 } /* Name.Constant */
-.code .nd { color: #AA22FF } /* Name.Decorator */
-.code .ni { color: #999999; font-weight: bold } /* Name.Entity */
-.code .ne { color: #D2413A; font-weight: bold } /* Name.Exception */
-.code .nf { color: #0000FF } /* Name.Function */
-.code .nl { color: #A0A000 } /* Name.Label */
-.code .nn { color: #0000FF; font-weight: bold } /* Name.Namespace */
-.code .nt { color: #008000; font-weight: bold } /* Name.Tag */
-.code .nv { color: #19177C } /* Name.Variable */
-.code .ow { color: #AA22FF; font-weight: bold } /* Operator.Word */
-.code .w { color: #bbbbbb } /* Text.Whitespace */
-.code .mb { color: #666666 } /* Literal.Number.Bin */
-.code .mf { color: #666666 } /* Literal.Number.Float */
-.code .mh { color: #666666 } /* Literal.Number.Hex */
-.code .mi { color: #666666 } /* Literal.Number.Integer */
-.code .mo { color: #666666 } /* Literal.Number.Oct */
-.code .sb { color: #BA2121 } /* Literal.String.Backtick */
-.code .sc { color: #BA2121 } /* Literal.String.Char */
-.code .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
-.code .s2 { color: #BA2121 } /* Literal.String.Double */
-.code .se { color: #BB6622; font-weight: bold } /* Literal.String.Escape */
-.code .sh { color: #BA2121 } /* Literal.String.Heredoc */
-.code .si { color: #BB6688; font-weight: bold } /* Literal.String.Interpol */
-.code .sx { color: #008000 } /* Literal.String.Other */
-.code .sr { color: #BB6688 } /* Literal.String.Regex */
-.code .s1 { color: #BA2121 } /* Literal.String.Single */
-.code .ss { color: #19177C } /* Literal.String.Symbol */
-.code .bp { color: #008000 } /* Name.Builtin.Pseudo */
-.code .vc { color: #19177C } /* Name.Variable.Class */
-.code .vg { color: #19177C } /* Name.Variable.Global */
-.code .vi { color: #19177C } /* Name.Variable.Instance */
-.code .il { color: #666666 } /* Literal.Number.Integer.Long */
-</style>
 <style media="print" type="text/css">
 body {
     margin: 0;
@@ -245,9 +164,9 @@ a {
     width: 600px;
     margin: 100px auto 0 auto;
     padding: 20px;
-    color: black;
-    border: 1px solid #ccc;
-    background: #eee;
+    color: #2A2A2E;
+    border: 1px solid #9A9A9E;
+    background: #FAFAFF;
 }
 #javascript-disabled h1 {
     width: 100%;
@@ -275,14 +194,14 @@ a {
     margin-top: 0.1em;
 }
 .doc table {
-    border: 1px solid #ccc;
+    border: 1px solid gray;
     background: transparent;
     border-collapse: collapse;
     empty-cells: show;
     font-size: 0.9em;
 }
 .doc table th, .doc table td {
-    border: 1px solid #ccc;
+    border: 1px solid gray;
     background: transparent;
     padding: 0.1em 0.3em;
     height: 1.2em;
@@ -294,22 +213,22 @@ a {
 .doc pre {
     font-size: 1.1em;
     letter-spacing: 0.05em;
-    background: #f4f4f4;
+    background: #F4F4FF;
 }
 .doc code {
     padding: 0 0.2em;
     letter-spacing: 0.05em;
-    background: #eee;
+    background: #F4F4FF;
 }
 .doc li {
     list-style-position: inside;
     list-style-type: square;
 }
 .doc img {
-    border: 1px solid #ccc;
+    border: 1px solid gray;
 }
 .doc hr {
-    background: #ccc;
+    background: gray;
     height: 1px;
     border: 0;
 }
@@ -432,16 +351,8 @@ window.util = function () {
         var base = window.output ? window.output.baseMillis : 0;
         return new Date(base + millis);
     }
-    function createGeneratedString(timestamp) {
-        var date = new Date(timestamp);
-        var dt = dateTimeFromDate(date).slice(0, 17);  // drop millis
-        var offset = date.getTimezoneOffset();
-        var sign = offset > 0 ? '-' : '+';
-        var hours = Math.floor(Math.abs(offset) / 60);
-        var mins = Math.abs(offset) % 60;
-        return dt + ' GMT' + sign + padTo(hours, 2) + ':' + padTo(mins, 2);
-    }
-    function createGeneratedAgoString(timestamp) {
+    function createGeneratedAgoString(generatedMillis) {
+        generatedMillis = timestamp(generatedMillis);
         function timeString(time, shortUnit) {
             var unit = {y: 'year', d: 'day', h: 'hour', m: 'minute',
                         s: 'second'}[shortUnit];
@@ -452,7 +363,7 @@ window.util = function () {
             // Not a perfect algorithm but ought to be enough
             return days - Math.floor(years / 4);
         }
-        var generated = Math.round(timestamp / 1000);
+        var generated = Math.round(generatedMillis / 1000);
         var current = Math.round(new Date().getTime() / 1000);
         var elapsed = current - generated;
         var prefix = '';
@@ -511,7 +422,6 @@ window.util = function () {
         dateTimeFromDate: dateTimeFromDate,
         formatElapsed: formatElapsed,
         timestamp: timestamp,
-        createGeneratedString: createGeneratedString,
         createGeneratedAgoString: createGeneratedAgoString,
         parseQueryString: parseQueryString
     };
@@ -547,7 +457,7 @@ window.util = function () {
 jQuery.extend({highlight:function(e,t,n,r){if(e.nodeType===3){var i=e.data.match(t);if(i){var s=document.createElement(n||"span");s.className=r||"highlight";var o=e.splitText(i.index);o.splitText(i[0].length);var u=o.cloneNode(true);s.appendChild(u);o.parentNode.replaceChild(s,o);return 1}}else if(e.nodeType===1&&e.childNodes&&!/(script|style)/i.test(e.tagName)&&!(e.tagName===n.toUpperCase()&&e.className===r)){for(var a=0;a<e.childNodes.length;a++){a+=jQuery.highlight(e.childNodes[a],t,n,r)}}return 0}});jQuery.fn.unhighlight=function(e){var t={className:"highlight",element:"span"};jQuery.extend(t,e);return this.find(t.element+"."+t.className).each(function(){var e=this.parentNode;e.replaceChild(this.firstChild,this);e.normalize()}).end()};jQuery.fn.highlight=function(e,t){var n={className:"highlight",element:"span",caseSensitive:false,wordsOnly:false};jQuery.extend(n,t);if(e.constructor===String){e=[e]}e=jQuery.grep(e,function(e,t){return e!=""});e=jQuery.map(e,function(e,t){return e.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,"\\$&")});if(e.length==0){return this}var r=n.caseSensitive?"":"i";var i="("+e.join("|")+")";if(n.wordsOnly){i="\\b"+i+"\\b"}var s=new RegExp(i,r);return this.each(function(){jQuery.highlight(this,s,n.element,n.className)})}
 </script>
 <script type="text/javascript">
-libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Robot Framework. It provides keywords for performing various operations on an MQTT broker. See <a href=\"http://mqtt.org/\">http://mqtt.org/\x3c/a> for more details on MQTT specification.\x3c/p>\n<p>This library uses eclipse project's paho client. For more information on underlying methods and documentation, see: <a href=\"http://eclipse.org/paho/clients/python/docs/\">http://eclipse.org/paho/clients/python/docs/\x3c/a>\x3c/p>","generated":"2018-12-27 12:24:11","inits":[{"args":["loop_timeout=5 seconds"],"doc":"","matched":true,"name":"Init","shortdoc":"","tags":[]}],"keywords":[{"args":["broker","port=1883","client_id=","clean_session=True"],"doc":"<p>Connect to an MQTT broker. This is a pre-requisite step for publish and subscribe keywords.\x3c/p>\n<p><span class=\"name\">broker\x3c/span> MQTT broker host\x3c/p>\n<p><span class=\"name\">port\x3c/span> broker port (default 1883)\x3c/p>\n<p><span class=\"name\">client_id\x3c/span> if not specified, a random id is generated\x3c/p>\n<p><span class=\"name\">clean_session\x3c/span> specifies the clean session flag for the connection\x3c/p>\n<p>Examples:\x3c/p>\n<p>Connect to a broker with default port and client id\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Connect to a broker by specifying the port and client id explicitly\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n<td>1883\x3c/td>\n<td>test.client\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Connect to a broker with clean session flag set to false\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n<td>clean_session=${false}\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Connect","shortdoc":"Connect to an MQTT broker. This is a pre-requisite step for publish","tags":[]},{"args":[],"doc":"<p>Disconnect from MQTT Broker.\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Disconnect\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Disconnect","shortdoc":"Disconnect from MQTT Broker.","tags":[]},{"args":["topic","timeout=1","limit=1"],"doc":"<p>Listen to a topic and return a list of message payloads received within the specified time. Requires an async Subscribe to have been called previously.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to listen to\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> duration to listen\x3c/p>\n<p><span class=\"name\">limit\x3c/span> the max number of payloads that will be returned. Specify 0 for no limit\x3c/p>\n<p>Examples:\x3c/p>\n<p>Listen and get a list of all messages received within 5 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${messages}=\x3c/td>\n<td>Listen\x3c/td>\n<td>test/test\x3c/td>\n<td>timeout=5\x3c/td>\n<td>limit=0\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Listen and get 1st message received within 60 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>@{messages}=\x3c/td>\n<td>Listen\x3c/td>\n<td>test/test\x3c/td>\n<td>timeout=60\x3c/td>\n<td>limit=1\x3c/td>\n\x3c/tr>\n<tr>\n<td>Length should be\x3c/td>\n<td>${messages}\x3c/td>\n<td>1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Listen","shortdoc":"Listen to a topic and return a list of message payloads received","tags":[]},{"args":["topic","message=None","qos=0","retain=False"],"doc":"<p>Publish a message to a topic with specified qos and retained flag. It is required that a connection has been established using <a href=\"#Connect\" class=\"name\">Connect\x3c/a> keyword before using this keyword.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to which the message will be published\x3c/p>\n<p><span class=\"name\">message\x3c/span> message payload to publish\x3c/p>\n<p><span class=\"name\">qos\x3c/span> qos of the message\x3c/p>\n<p><span class=\"name\">retain\x3c/span> retained flag\x3c/p>\n<p>Examples:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Publish\x3c/td>\n<td>test/test\x3c/td>\n<td>test message\x3c/td>\n<td>1\x3c/td>\n<td>${false}\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Publish","shortdoc":"Publish a message to a topic with specified qos and retained flag.","tags":[]},{"args":["msgs","hostname=localhost","port=1883","client_id=","keepalive=60","will=None","auth=None","tls=None","protocol=3"],"doc":"<p>Publish multiple messages and disconnect. This keyword uses the <a href=\"http://eclipse.org/paho/clients/python/docs/#multiple\">multiple\x3c/a> function of publish module.\x3c/p>\n<p><span class=\"name\">msgs\x3c/span> a list of messages to publish. Each message is either a dict or a tuple. If a dict, it must be of the form: msg = {'topic':\"&lt;topic&gt;\", 'payload':\"&lt;payload&gt;\", 'qos':&lt;qos&gt;, 'retain':&lt;retain&gt;} Only the topic must be present. Default values will be used for any missing arguments. If a tuple, then it must be of the form: (\"&lt;topic&gt;\", \"&lt;payload&gt;\", qos, retain)\x3c/p>\n<p>See <a href=\"#Publish%20Single\" class=\"name\">publish single\x3c/a> for the description of hostname, port, client_id, keepalive, will, auth, tls, protocol.\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${msg1}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 1\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>${msg2}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 2\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>${msg3}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 3\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>@{msgs}\x3c/td>\n<td>Create List\x3c/td>\n<td>${msg1}\x3c/td>\n<td>${msg2}\x3c/td>\n<td>${msg3}\x3c/td>\n\x3c/tr>\n<tr>\n<td>Publish Multiple\x3c/td>\n<td>msgs=${msgs}\x3c/td>\n<td>hostname=127.0.0.1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Publish Multiple","shortdoc":"Publish multiple messages and disconnect. This keyword uses the","tags":[]},{"args":["topic","payload=None","qos=0","retain=False","hostname=localhost","port=1883","client_id=","keepalive=60","will=None","auth=None","tls=None","protocol=3"],"doc":"<p>Publish a single message and disconnect. This keyword uses the <a href=\"http://eclipse.org/paho/clients/python/docs/#single\">single\x3c/a> function of publish module.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to which the message will be published\x3c/p>\n<p><span class=\"name\">payload\x3c/span> message payload to publish (default None)\x3c/p>\n<p><span class=\"name\">qos\x3c/span> qos of the message (default 0)\x3c/p>\n<p><span class=\"name\">retain\x3c/span> retain flag (True or False, default False)\x3c/p>\n<p><span class=\"name\">hostname\x3c/span> MQTT broker host (default localhost)\x3c/p>\n<p><span class=\"name\">port\x3c/span> broker port (default 1883)\x3c/p>\n<p><span class=\"name\">client_id\x3c/span> if not specified, a random id is generated\x3c/p>\n<p><span class=\"name\">keepalive\x3c/span> keepalive timeout value for client\x3c/p>\n<p><span class=\"name\">will\x3c/span> a dict containing will parameters for client: will = {'topic': \"&lt;topic&gt;\", 'payload':\"&lt;payload\"&gt;, 'qos':&lt;qos&gt;, 'retain':&lt;retain&gt;}\x3c/p>\n<p><span class=\"name\">auth\x3c/span> a dict containing authentication parameters for the client: auth = {'username':\"&lt;username&gt;\", 'password':\"&lt;password&gt;\"}\x3c/p>\n<p><span class=\"name\">tls\x3c/span> a dict containing TLS configuration parameters for the client: dict = {'ca_certs':\"&lt;ca_certs&gt;\", 'certfile':\"&lt;certfile&gt;\", 'keyfile':\"&lt;keyfile&gt;\", 'tls_version':\"&lt;tls_version&gt;\", 'ciphers':\"&lt;ciphers\"&gt;}\x3c/p>\n<p><span class=\"name\">protocol\x3c/span> MQTT protocol version (MQTTv31 or MQTTv311)\x3c/p>\n<p>Example:\x3c/p>\n<p>Publish a message on specified topic and disconnect:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Publish Single\x3c/td>\n<td>topic=t/mqtt\x3c/td>\n<td>payload=test\x3c/td>\n<td>hostname=127.0.0.1\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Publish Single","shortdoc":"Publish a single message and disconnect. This keyword uses the","tags":[]},{"args":["username","password=None"],"doc":"","matched":true,"name":"Set Username And Password","shortdoc":"","tags":[]},{"args":["topic","qos","timeout=1","limit=1"],"doc":"<p>Subscribe to a topic and return a list of message payloads received within the specified time.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to subscribe to\x3c/p>\n<p><span class=\"name\">qos\x3c/span> quality of service for the subscription\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> duration of subscription. Specify 0 to enable background looping (async)\x3c/p>\n<p><span class=\"name\">limit\x3c/span> the max number of payloads that will be returned. Specify 0 for no limit\x3c/p>\n<p>Examples:\x3c/p>\n<p>Subscribe and get a list of all messages received within 5 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${messages}=\x3c/td>\n<td>Subscribe\x3c/td>\n<td>test/test\x3c/td>\n<td>qos=1\x3c/td>\n<td>timeout=5\x3c/td>\n<td>limit=0\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Subscribe and get 1st message received within 60 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>@{messages}=\x3c/td>\n<td>Subscribe\x3c/td>\n<td>test/test\x3c/td>\n<td>qos=1\x3c/td>\n<td>timeout=60\x3c/td>\n<td>limit=1\x3c/td>\n\x3c/tr>\n<tr>\n<td>Length should be\x3c/td>\n<td>${messages}\x3c/td>\n<td>1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Subscribe","shortdoc":"Subscribe to a topic and return a list of message payloads received","tags":[]},{"args":["topic","qos","payload","timeout=1"],"doc":"<p>Subscribe to a topic and validate that the specified payload is received within timeout. It is required that a connection has been established using <a href=\"#Connect\" class=\"name\">Connect\x3c/a> keyword. The payload can be specified as a python regular expression. If the specified payload is not received within timeout, an AssertionError is thrown.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to subscribe to\x3c/p>\n<p><span class=\"name\">qos\x3c/span> quality of service for the subscription\x3c/p>\n<p><span class=\"name\">payload\x3c/span> payload (message) that is expected to arrive\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> time to wait for the payload to arrive\x3c/p>\n<p>Examples:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Subscribe And Validate\x3c/td>\n<td>test/test\x3c/td>\n<td>1\x3c/td>\n<td>test message\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Subscribe And Validate","shortdoc":"Subscribe to a topic and validate that the specified payload is","tags":[]},{"args":["topic"],"doc":"<p>Unsubscribe the client from the specified topic.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to unsubscribe from\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Unsubscribe\x3c/td>\n<td>test/mqtt_test\x3c/td>\n\x3c/tr>\n\x3c/table>","matched":true,"name":"Unsubscribe","shortdoc":"Unsubscribe the client from the specified topic.","tags":[]}],"name":"MQTTLibrary","named_args":true,"scope":"global","version":"0.6.0"};
+libdoc = {"doc":"<p>A keyword library for Robot Framework. It provides keywords for performing various operations on an MQTT broker. See <a href=\"http://mqtt.org/\">http://mqtt.org/\x3c/a> for more details on MQTT specification.\x3c/p>\n<p>This library uses eclipse project's paho client. For more information on underlying methods and documentation, see: <a href=\"http://eclipse.org/paho/clients/python/docs/\">http://eclipse.org/paho/clients/python/docs/\x3c/a>\x3c/p>","generated":"2019-01-16 23:38:19","inits":[{"args":"loop_timeout=5 seconds","doc":"","name":"Init","shortdoc":""}],"keywords":[{"args":"broker, port=1883, client_id=, clean_session=True","doc":"<p>Connect to an MQTT broker. This is a pre-requisite step for publish and subscribe keywords.\x3c/p>\n<p><span class=\"name\">broker\x3c/span> MQTT broker host\x3c/p>\n<p><span class=\"name\">port\x3c/span> broker port (default 1883)\x3c/p>\n<p><span class=\"name\">client_id\x3c/span> if not specified, a random id is generated\x3c/p>\n<p><span class=\"name\">clean_session\x3c/span> specifies the clean session flag for the connection\x3c/p>\n<p>Examples:\x3c/p>\n<p>Connect to a broker with default port and client id\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Connect to a broker by specifying the port and client id explicitly\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n<td>1883\x3c/td>\n<td>test.client\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Connect to a broker with clean session flag set to false\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Connect\x3c/td>\n<td>127.0.0.1\x3c/td>\n<td>clean_session=${false}\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Connect","shortdoc":"Connect to an MQTT broker. This is a pre-requisite step for publish"},{"args":"","doc":"<p>Disconnect from MQTT Broker.\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Disconnect\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Disconnect","shortdoc":"Disconnect from MQTT Broker."},{"args":"topic, timeout=1, limit=1","doc":"<p>Listen to a topic and return a list of message payloads received within the specified time. Requires an async Subscribe to have been called previously.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to listen to\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> duration to listen\x3c/p>\n<p><span class=\"name\">limit\x3c/span> the max number of payloads that will be returned. Specify 0 for no limit\x3c/p>\n<p>Examples:\x3c/p>\n<p>Listen and get a list of all messages received within 5 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${messages}=\x3c/td>\n<td>Listen\x3c/td>\n<td>test/test\x3c/td>\n<td>timeout=5\x3c/td>\n<td>limit=0\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Listen and get 1st message received within 60 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>@{messages}=\x3c/td>\n<td>Listen\x3c/td>\n<td>test/test\x3c/td>\n<td>timeout=60\x3c/td>\n<td>limit=1\x3c/td>\n\x3c/tr>\n<tr>\n<td>Length should be\x3c/td>\n<td>${messages}\x3c/td>\n<td>1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Listen","shortdoc":"Listen to a topic and return a list of message payloads received"},{"args":"topic, message=None, qos=0, retain=False","doc":"<p>Publish a message to a topic with specified qos and retained flag. It is required that a connection has been established using <a href=\"#Connect\" class=\"name\">Connect\x3c/a> keyword before using this keyword.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to which the message will be published\x3c/p>\n<p><span class=\"name\">message\x3c/span> message payload to publish\x3c/p>\n<p><span class=\"name\">qos\x3c/span> qos of the message\x3c/p>\n<p><span class=\"name\">retain\x3c/span> retained flag\x3c/p>\n<p>Examples:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Publish\x3c/td>\n<td>test/test\x3c/td>\n<td>test message\x3c/td>\n<td>1\x3c/td>\n<td>${false}\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Publish","shortdoc":"Publish a message to a topic with specified qos and retained flag."},{"args":"msgs, hostname=localhost, port=1883, client_id=, keepalive=60, will=None, auth=None, tls=None, protocol=3","doc":"<p>Publish multiple messages and disconnect. This keyword uses the <a href=\"http://eclipse.org/paho/clients/python/docs/#multiple\">multiple\x3c/a> function of publish module.\x3c/p>\n<p><span class=\"name\">msgs\x3c/span> a list of messages to publish. Each message is either a dict or a tuple. If a dict, it must be of the form: msg = {'topic':\"&lt;topic&gt;\", 'payload':\"&lt;payload&gt;\", 'qos':&lt;qos&gt;, 'retain':&lt;retain&gt;} Only the topic must be present. Default values will be used for any missing arguments. If a tuple, then it must be of the form: (\"&lt;topic&gt;\", \"&lt;payload&gt;\", qos, retain)\x3c/p>\n<p>See <a href=\"#Publish%20Single\" class=\"name\">publish single\x3c/a> for the description of hostname, port, client_id, keepalive, will, auth, tls, protocol.\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${msg1}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 1\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>${msg2}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 2\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>${msg3}\x3c/td>\n<td>Create Dictionary\x3c/td>\n<td>topic=${topic}\x3c/td>\n<td>payload=message 3\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n<tr>\n<td>@{msgs}\x3c/td>\n<td>Create List\x3c/td>\n<td>${msg1}\x3c/td>\n<td>${msg2}\x3c/td>\n<td>${msg3}\x3c/td>\n\x3c/tr>\n<tr>\n<td>Publish Multiple\x3c/td>\n<td>msgs=${msgs}\x3c/td>\n<td>hostname=127.0.0.1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Publish Multiple","shortdoc":"Publish multiple messages and disconnect. This keyword uses the"},{"args":"topic, payload=None, qos=0, retain=False, hostname=localhost, port=1883, client_id=, keepalive=60, will=None, auth=None, tls=None, protocol=3","doc":"<p>Publish a single message and disconnect. This keyword uses the <a href=\"http://eclipse.org/paho/clients/python/docs/#single\">single\x3c/a> function of publish module.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to which the message will be published\x3c/p>\n<p><span class=\"name\">payload\x3c/span> message payload to publish (default None)\x3c/p>\n<p><span class=\"name\">qos\x3c/span> qos of the message (default 0)\x3c/p>\n<p><span class=\"name\">retain\x3c/span> retain flag (True or False, default False)\x3c/p>\n<p><span class=\"name\">hostname\x3c/span> MQTT broker host (default localhost)\x3c/p>\n<p><span class=\"name\">port\x3c/span> broker port (default 1883)\x3c/p>\n<p><span class=\"name\">client_id\x3c/span> if not specified, a random id is generated\x3c/p>\n<p><span class=\"name\">keepalive\x3c/span> keepalive timeout value for client\x3c/p>\n<p><span class=\"name\">will\x3c/span> a dict containing will parameters for client: will = {'topic': \"&lt;topic&gt;\", 'payload':\"&lt;payload\"&gt;, 'qos':&lt;qos&gt;, 'retain':&lt;retain&gt;}\x3c/p>\n<p><span class=\"name\">auth\x3c/span> a dict containing authentication parameters for the client: auth = {'username':\"&lt;username&gt;\", 'password':\"&lt;password&gt;\"}\x3c/p>\n<p><span class=\"name\">tls\x3c/span> a dict containing TLS configuration parameters for the client: dict = {'ca_certs':\"&lt;ca_certs&gt;\", 'certfile':\"&lt;certfile&gt;\", 'keyfile':\"&lt;keyfile&gt;\", 'tls_version':\"&lt;tls_version&gt;\", 'ciphers':\"&lt;ciphers\"&gt;}\x3c/p>\n<p><span class=\"name\">protocol\x3c/span> MQTT protocol version (MQTTv31 or MQTTv311)\x3c/p>\n<p>Example:\x3c/p>\n<p>Publish a message on specified topic and disconnect:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Publish Single\x3c/td>\n<td>topic=t/mqtt\x3c/td>\n<td>payload=test\x3c/td>\n<td>hostname=127.0.0.1\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Publish Single","shortdoc":"Publish a single message and disconnect. This keyword uses the"},{"args":"username, password=None","doc":"","name":"Set Username And Password","shortdoc":""},{"args":"topic, qos, timeout=1, limit=1","doc":"<p>Subscribe to a topic and return a list of message payloads received within the specified time.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to subscribe to\x3c/p>\n<p><span class=\"name\">qos\x3c/span> quality of service for the subscription\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> duration of subscription. Specify 0 to enable background looping (async)\x3c/p>\n<p><span class=\"name\">limit\x3c/span> the max number of payloads that will be returned. Specify 0 for no limit\x3c/p>\n<p>Examples:\x3c/p>\n<p>Subscribe and get a list of all messages received within 5 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>${messages}=\x3c/td>\n<td>Subscribe\x3c/td>\n<td>test/test\x3c/td>\n<td>qos=1\x3c/td>\n<td>timeout=5\x3c/td>\n<td>limit=0\x3c/td>\n\x3c/tr>\n\x3c/table>\n<p>Subscribe and get 1st message received within 60 seconds\x3c/p>\n<table border=\"1\">\n<tr>\n<td>@{messages}=\x3c/td>\n<td>Subscribe\x3c/td>\n<td>test/test\x3c/td>\n<td>qos=1\x3c/td>\n<td>timeout=60\x3c/td>\n<td>limit=1\x3c/td>\n\x3c/tr>\n<tr>\n<td>Length should be\x3c/td>\n<td>${messages}\x3c/td>\n<td>1\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n<td>\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Subscribe","shortdoc":"Subscribe to a topic and return a list of message payloads received"},{"args":"topic, qos, payload, timeout=1","doc":"<p>Subscribe to a topic and validate that the specified payload is received within timeout. It is required that a connection has been established using <a href=\"#Connect\" class=\"name\">Connect\x3c/a> keyword. The payload can be specified as a python regular expression. If the specified payload is not received within timeout, an AssertionError is thrown.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to subscribe to\x3c/p>\n<p><span class=\"name\">qos\x3c/span> quality of service for the subscription\x3c/p>\n<p><span class=\"name\">payload\x3c/span> payload (message) that is expected to arrive\x3c/p>\n<p><span class=\"name\">timeout\x3c/span> time to wait for the payload to arrive\x3c/p>\n<p>Examples:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Subscribe And Validate\x3c/td>\n<td>test/test\x3c/td>\n<td>1\x3c/td>\n<td>test message\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Subscribe And Validate","shortdoc":"Subscribe to a topic and validate that the specified payload is"},{"args":"topic","doc":"<p>Unsubscribe the client from the specified topic.\x3c/p>\n<p><span class=\"name\">topic\x3c/span> topic to unsubscribe from\x3c/p>\n<p>Example:\x3c/p>\n<table border=\"1\">\n<tr>\n<td>Unsubscribe\x3c/td>\n<td>test/mqtt_test\x3c/td>\n\x3c/tr>\n\x3c/table>","name":"Unsubscribe","shortdoc":"Unsubscribe the client from the specified topic."}],"name":"MQTTLibrary","named_args":true,"scope":"global","version":"0.6.1"};
 </script>
 <title></title>
 </head>
@@ -572,13 +482,10 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
         parseTemplates();
         document.title = libdoc.name;
         renderTemplate('base', libdoc, $('body'));
-        if (libdoc.inits.length) {
+        if (libdoc.inits.length > 0) {
             renderTemplate('importing', libdoc);
         }
         renderTemplate('shortcuts', libdoc);
-        if (libdoc.contains_tags) {
-            renderTemplate('tags', libdoc);
-        }
         renderTemplate('keywords', libdoc);
         renderTemplate('footer', libdoc);
         scrollToHash();
@@ -618,13 +525,6 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
         }
     }
 
-    function tagSearch(tag) {
-        var include = {tags: true, tagsExact: true};
-        markMatches(tag, include);
-        highlightMatches(tag, include);
-        $('#keywords-container').find('.kw-row').addClass('hide-unmatched');
-    }
-
     function doSearch() {
         var string = $('#search-string').val();
         var include = getIncludesAndDisableIfOnlyOneLeft();
@@ -641,52 +541,38 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
         var name = $('#include-name');
         var args = $('#include-args');
         var doc = $('#include-doc');
-        var tags = $('#include-tags');
         var include = {name: name.prop('checked'),
                        args: args.prop('checked'),
-                       doc: doc.prop('checked'),
-                       tags: !!tags.prop('checked')};
-        if ((!include.name) && (!include.args) && (!include.doc)) {
-            tags.prop('disabled', true);
-        } else if ((!include.name) && (!include.args) && (!include.tags)) {
+                       doc: doc.prop('checked')};
+        if ((!include.name) && (!include.args)) {
             doc.prop('disabled', true);
-        } else if ((!include.name) && (!include.doc) && (!include.tags)) {
+        } else if ((!include.name) && (!include.doc)) {
             args.prop('disabled', true);
-        } else if ((!include.args) && (!include.doc) && (!include.tags)) {
+        } else if ((!include.args) && (!include.doc)) {
             name.prop('disabled', true);
         } else {
             name.prop('disabled', false);
             args.prop('disabled', false);
             doc.prop('disabled', false);
-            tags.prop('disabled', false);
         }
         return include;
     }
 
-    function markMatches(pattern, include) {
-        pattern = util.regexpEscape(pattern);
-        if (include.tagsExact) {
-            pattern = '^' + pattern + '$';
-        }
-        var regexp = new RegExp(pattern, 'i');
-        var test = regexp.test.bind(regexp);
-        var result = {contains_tags: libdoc.contains_tags};
+    function markMatches(string, include) {
+        var regexp = new RegExp(util.regexpEscape(string), 'i');
+        var result = {};
         var matchCount = 0;
         result.keywords = util.map(libdoc.keywords, function (kw) {
             kw = $.extend({}, kw);
-            kw.matched = (include.name && test(kw.name) ||
-                          include.args && test(kw.args) ||
-                          include.doc && test($(kw.doc).text()) ||
-                          include.tags && util.any(util.map(kw.tags, test)));
+            kw.matched = (include.name && regexp.test(kw.name) ||
+                          include.args && regexp.test(kw.args) ||
+                          include.doc && regexp.test($(kw.doc).text()));
             if (kw.matched)
                 matchCount++;
             return kw
         });
         renderTemplate('shortcuts', result);
         renderTemplate('keywords', result);
-        if (libdoc.contains_tags) {
-            renderTemplate('tags', libdoc);
-        }
         var ending = matchCount != 1 ? 's.' : '.';
         $('#match-count').show().text(matchCount + ' matched keyword' + ending);
         $('#altogether-count').hide();
@@ -706,16 +592,6 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
         }
         if (include.doc) {
             keywords.find('.doc').highlight(string);
-        }
-        if (include.tags) {
-            var matches = keywords.find('.tags').find('a').add(
-                    $('#tags-container').find('a'));
-            if (include.tagsExact) {
-                matches = matches.filter(function (index, tag) {
-                    return $(tag).text().toUpperCase() == string.toUpperCase();
-                });
-            }
-            matches.highlight(string);
         }
     }
 
@@ -743,9 +619,6 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
     function resetKeywords() {
         renderTemplate('shortcuts', libdoc);
         renderTemplate('keywords', libdoc);
-        if (libdoc.contains_tags) {
-            renderTemplate('tags', libdoc);
-        }
         $('#match-count').hide();
         $('#altogether-count').show();
     }
@@ -780,7 +653,6 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
     </div>
     <div id="importing-container"></div>
     <div id="shortcuts-container"></div>
-    <div id="tags-container"></div>
     <div id="keywords-container"></div>
     <div id="footer-container"></div>
     <form id="search" action="javascript:void(0)">
@@ -795,10 +667,6 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
                 <label for="include-args">Arguments</label>
                 <input type="checkbox" id="include-doc" onclick="doSearch()" checked>
                 <label for="include-doc">Documentation</label>
-                {{if libdoc.contains_tags}}
-                <input type="checkbox" id="include-tags" onclick="doSearch()" checked>
-                <label for="include-tags">Tags</label>
-                {{/if}}
             </fieldset>
             <input type="checkbox" id="hide-unmatched" onclick="setMatchVisibility()" checked>
             <label for="hide-unmatched">Hide unmatched keywords</label>
@@ -822,11 +690,7 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
         </tr>
         {{each inits}}
         <tr class="kw-row">
-            <td class="args">
-            {{each args}}
-              <span>${$value}</span>{{if $index < args.length-1}}, {{/if}}
-            {{/each}}
-            </td>
+            <td class="args">${$value.args}</td>
             <td class="doc">{{html $value.doc}}</td>
         </tr>
         {{/each}}
@@ -845,58 +709,23 @@ libdoc = {"all_tags":[],"contains_tags":false,"doc":"<p>A keyword library for Ro
     </div>
 </script>
 
-<script type="text/x-jquery-tmpl" id="tags-template">
-    <h2 id="Tags">Tags</h2>
-    <div class='shortcuts'>
-        {{each all_tags}}
-        <a href="javascript:tagSearch('${$value}')"
-           title="Show tests with this tag">${$value}</a> &middot;
-        {{/each}}
-        <a href="javascript:resetKeywords()" class="normal-first-letter"
-           title="Show all tests">[Reset]</a>
-    </div>
-</script>
-
 <script type="text/x-jquery-tmpl" id="keywords-template">
     <h2 id="Keywords">Keywords</h2>
     <table border="1" class="keywords">
         <tr>
             <th class="kw">Keyword</th>
             <th class="args">Arguments</th>
-            {{if libdoc.contains_tags}}
-            <th class="tags">Tags</th>
-            {{/if}}
             <th class="doc">Documentation</th>
         </tr>
         {{each keywords}}
-            {{tmpl($value) 'keyword-template'}}
+        <tr class="kw-row {{if $value.matched === false}}no-{{/if}}match">
+            <td class="kw"><a name="${encodeURIComponent($value.name)}"></a>${$value.name}</td>
+            <td class="args">${$value.args}</td>
+            <td class="doc">{{html $value.doc}}</td>
+        </tr>
         {{/each}}
     </table>
 </script>
-
-<script type="text/x-jquery-tmpl" id="keyword-template">
-    <tr class="kw-row {{if matched === false}}no-{{/if}}match">
-        <td class="kw">
-            <a name="${name}" href="#${encodeURIComponent(name)}"
-               title="Link to this keyword">${name}</a>
-        </td>
-        <td class="args">
-            {{each args}}
-            <span>${$value}</span>{{if $index < args.length-1}}, {{/if}}
-            {{/each}}
-        </td>
-        {{if libdoc.contains_tags}}
-        <td class="tags">
-            {{each tags}}
-            <a href="javascript:tagSearch('${$value}')"
-               title="Show tests with this tag">${$value}</a>{{if $index < tags.length-1}}, {{/if}}
-            {{/each}}
-        </td>
-        {{/if}}
-        <td class="doc">{{html doc}}</td>
-    </tr>
-</script>
-
 
 <script type="text/x-jquery-tmpl" id="footer-template">
     <p class="footer">
