@@ -246,9 +246,9 @@ class MQTTKeywords(object):
         self._verified = False
 
         logger.info('Subscribing to topic: %s' % topic)
-        self._mqttc.subscribe(str(topic), int(qos))
         self._payload = str(payload)
         self._mqttc.on_message = self._on_message
+        self._mqttc.subscribe(str(topic), int(qos))
 
         timer_start = time.time()
         while time.time() < timer_start + seconds:
@@ -406,16 +406,18 @@ class MQTTKeywords(object):
                         will, auth, tls, protocol)
 
     def _on_message(self, client, userdata, message):
+        payload = message.payload.decode('utf-8')
         logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (str(message.payload), message.topic, str(message.qos)))
-        self._verified = re.match(self._payload, str(message.payload))
+            % (payload, message.topic, str(message.qos)))
+        self._verified = re.match(self._payload, payload)
 
     def _on_message_list(self, client, userdata, message):
+        payload = message.payload.decode('utf-8')
         logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (str(message.payload), message.topic, str(message.qos)))
+            % (payload, message.topic, str(message.qos)))
         if message.topic not in self._messages:
             self._messages[message.topic] = []
-        self._messages[message.topic].append(message.payload)
+        self._messages[message.topic].append(payload)
 
     def _on_connect(self, client, userdata, flags, rc):
         self._connected = True if rc == 0 else False

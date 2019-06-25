@@ -1,4 +1,5 @@
 *** Settings ***
+| Library       | String
 | Library       | MQTTLibrary
 | Test Timeout  | 30 seconds
 
@@ -12,7 +13,8 @@
 | *Test Cases*
 | Connect to a broker with default port and client id
 | | ${mqttc}    | Connect   | ${broker.uri}
-| | Should Match Regexp     | ${mqttc._client_id}   | ^paho/[0-9A-f]{18}
+| | ${client_id} = | Decode Bytes To String | ${mqttc._client_id} | UTF-8
+| | Should Be Empty         | ${client_id}  |
 | | [Teardown]  | Disconnect
 
 | Connect to a broker with default port and specified client id
