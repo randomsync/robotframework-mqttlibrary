@@ -1,5 +1,5 @@
 | *Settings*    | *Value*
-| Resource      | keywords.txt
+| Resource      | keywords.robot
 | Test Timeout  | 30 seconds
 
 | *Test Cases*
@@ -213,4 +213,4 @@
 | | Length Should Be            | ${messages2}       | 2
 | | Should Be Equal As Strings  | @{messages2}[0]    | test message1
 | | Should Be Equal As Strings  | @{messages2}[1]    | test message3
-| | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    |${topic2}
+| | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    | ${topic2}

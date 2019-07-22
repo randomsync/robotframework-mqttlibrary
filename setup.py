@@ -6,7 +6,7 @@ here = dirname(abspath(__file__))
 
 
 # Get version
-execfile(join(here, 'src', 'MQTTLibrary', 'version.py'))
+exec(compile(open(join(here, 'src', 'MQTTLibrary', 'version.py'), "rb").read(), join(here, 'src', 'MQTTLibrary', 'version.py'), 'exec'))
 
 # Get the long description
 with open(join(here, 'README.rst')) as f:

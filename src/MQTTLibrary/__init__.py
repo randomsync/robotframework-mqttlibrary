@@ -1,5 +1,5 @@
-from MQTTKeywords import MQTTKeywords
-from version import VERSION
+from MQTTLibrary.MQTTKeywords import MQTTKeywords
+from MQTTLibrary.version import VERSION
 
 __version__ = VERSION
 

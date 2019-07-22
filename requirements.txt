@@ -1,2 +1,2 @@
-paho-mqtt==1.1
-robotframework==2.8.7
+paho-mqtt~=1.1
+robotframework~=3.0
