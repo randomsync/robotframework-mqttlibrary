@@ -25,6 +25,7 @@ setup(
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Testing',
     ],
     keywords          = 'robotframework testing testautomation mqtt',

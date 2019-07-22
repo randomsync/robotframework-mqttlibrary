@@ -32,3 +32,4 @@ deploy:
     on:
       repo: randomsync/robotframework-mqttlibrary
       tags: true
+      python: '3.7'
