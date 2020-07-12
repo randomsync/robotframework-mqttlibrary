@@ -5,7 +5,7 @@
 
 
 *** Variables ***
-| ${broker.uri}     | iot.eclipse.org
+| ${broker.uri}     | mqtt.eclipse.org
 | ${broker.port}    | 1883
 | ${client.id}      | test.client
 

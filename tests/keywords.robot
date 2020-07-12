@@ -3,7 +3,7 @@
 | Library       | BuiltIn
 
 | *Variables*       | *Value*
-| ${broker.uri}     | iot.eclipse.org
+| ${broker.uri}     | mqtt.eclipse.org
 #| ${broker.uri}     | 127.0.0.1
 | ${broker.port}    | 1883
 | ${client.id}      | mqtt.test.client
@@ -68,8 +68,9 @@
 
 | Unsubscribe Multiple and Disconnect
 | | [Arguments] | @{topics}
-| | :FOR    | ${topic}    | IN    | @{topics}
+| | FOR    | ${topic}    | IN    | @{topics}
 | | | Unsubscribe    | ${topic}
+| | END
 | | [Teardown]  | Disconnect
 
 | Subscribe and Unsubscribe

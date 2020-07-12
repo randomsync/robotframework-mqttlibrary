@@ -79,7 +79,7 @@
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic}
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
-| | Should Be Equal As Strings  | @{messages}[0]    | test message
+| | Should Be Equal As Strings  | ${messages}[0]    | test message
 
 | Subscribe with no limit, publish multiple messages and validate they are received
 | | Sleep       | 1s
@@ -93,9 +93,9 @@
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=0
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 3
-| | Should Be Equal As Strings  | @{messages}[0]    | test message1
-| | Should Be Equal As Strings  | @{messages}[1]    | test message2
-| | Should Be Equal As Strings  | @{messages}[2]    | test message3
+| | Should Be Equal As Strings  | ${messages}[0]    | test message1
+| | Should Be Equal As Strings  | ${messages}[1]    | test message2
+| | Should Be Equal As Strings  | ${messages}[2]    | test message3
 
 | Subscribe with limit
 | | Sleep       | 1s
@@ -109,12 +109,12 @@
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=1
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
-| | Should Be Equal As Strings  | @{messages}[0]    | test message1
+| | Should Be Equal As Strings  | ${messages}[0]    | test message1
 | | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=2
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 2
-| | Should Be Equal As Strings  | @{messages}[0]    | test message2
-| | Should Be Equal As Strings  | @{messages}[1]    | test message3
+| | Should Be Equal As Strings  | ${messages}[0]    | test message2
+| | Should Be Equal As Strings  | ${messages}[1]    | test message3
 
 | Unsubscribe and validate no messages are received
 | | Sleep       | 1s
@@ -166,7 +166,7 @@
 | | @{messages} | Listen and Get Messages    | topic=${topic}
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
-| | Should Be Equal As Strings  | @{messages}[0]    | test message
+| | Should Be Equal As Strings  | ${messages}[0]    | test message
 | | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
 
 | Subscribe async, publish several messages, listen for and validate they are received
@@ -184,9 +184,9 @@
 | | @{messages} | Listen and Get Messages    | topic=${topic} | limit=0
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 3
-| | Should Be Equal As Strings  | @{messages}[0]    | test message1
-| | Should Be Equal As Strings  | @{messages}[1]    | test message2
-| | Should Be Equal As Strings  | @{messages}[2]    | test message3
+| | Should Be Equal As Strings  | ${messages}[0]    | test message1
+| | Should Be Equal As Strings  | ${messages}[1]    | test message2
+| | Should Be Equal As Strings  | ${messages}[2]    | test message3
 | | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
 
 | Subscribe async to multiple topics, publish several messages, listen for them and validate they are received
@@ -209,8 +209,8 @@
 | | LOG         | ${messages1}
 | | LOG         | ${messages2}
 | | Length Should Be            | ${messages1}       | 1
-| | Should Be Equal As Strings  | @{messages1}[0]    | test message2
+| | Should Be Equal As Strings  | ${messages1}[0]    | test message2
 | | Length Should Be            | ${messages2}       | 2
-| | Should Be Equal As Strings  | @{messages2}[0]    | test message1
-| | Should Be Equal As Strings  | @{messages2}[1]    | test message3
+| | Should Be Equal As Strings  | ${messages2}[0]    | test message1
+| | Should Be Equal As Strings  | ${messages2}[1]    | test message3
 | | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    | ${topic2}
