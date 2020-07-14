@@ -28,7 +28,7 @@
 | | [Teardown]  | Unsubscribe and Disconnect | ${topic}
 
 | Subscribe with both single level and multi level wildcards in topic name
-| | [Tags]      | auth
+| | [Tags]      | wildcards
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | Company/+/Data/#
@@ -43,7 +43,7 @@
 | | [Teardown]  | Unsubscribe and Disconnect | ${topic}
 
 | Subscribe with multiple single level wildcards in topic name
-| | [Tags]      | auth
+| | [Tags]      | wildcards
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | Company/+/Data/+/test

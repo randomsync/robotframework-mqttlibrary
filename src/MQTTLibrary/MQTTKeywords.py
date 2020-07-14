@@ -199,6 +199,11 @@ class MQTTKeywords(object):
         | Length should be | ${messages} | 1 |
 
         """
+        timer_start = time.time()
+        while time.time() < timer_start + self._loop_timeout:
+            if self._subscribed:
+                break;
+            time.sleep(1)
         if not self._subscribed:
             logger.warn('Cannot listen when not subscribed to a topic')
             return []
