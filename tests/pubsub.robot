@@ -214,3 +214,14 @@
 | | Should Be Equal As Strings  | ${messages2}[0]    | test message1
 | | Should Be Equal As Strings  | ${messages2}[1]    | test message3
 | | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    | ${topic2}
+
+| Listen immediately after Subscribe and validate message is received
+| | ${time}     | Get Time      | epoch
+| | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
+| | ${topic}    | Set Variable  | test/mqtt_test_sub
+| | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message      | qos=1
+| | Subscribe Async             | client.id=${client}   | topic=${topic}
+| | @{messages}= | Listen       | topic=${topic} | limit=10 | timeout=5
+| | Should Be Equal As Strings  | ${messages}[0]    | test message
+| | [Teardown]  | Unsubscribe and Disconnect | ${topic}
