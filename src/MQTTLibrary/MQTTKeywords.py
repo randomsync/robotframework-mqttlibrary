@@ -1,3 +1,4 @@
+from paho.mqtt.matcher import MQTTMatcher
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import robot
@@ -6,6 +7,21 @@ import re
 
 from robot.libraries.DateTime import convert_time
 from robot.api import logger
+
+# https://github.com/eclipse/paho.mqtt.python/blob/1eec03edf39128e461e6729694cf5d7c1959e5e4/src/paho/mqtt/client.py#L250
+def topic_matches_sub(sub, topic):
+    """Check whether a topic matches a subscription.
+    For example:
+    foo/bar would match the subscription foo/# or +/bar
+    non/matching would not match the subscription non/+/+
+    """
+    matcher = MQTTMatcher()
+    matcher[sub] = True
+    try:
+        next(matcher.iter_match(topic))
+        return True
+    except StopIteration:
+        return False
 
 class MQTTKeywords(object):
 
@@ -140,6 +156,7 @@ class MQTTKeywords(object):
         logger.info('Subscribing to topic: %s' % topic)
         self._mqttc.on_subscribe = self._on_subscribe
         self._mqttc.subscribe(str(topic), int(qos))
+
         self._mqttc.on_message = self._on_message_list
 
         if seconds == 0:
@@ -182,6 +199,11 @@ class MQTTKeywords(object):
         | Length should be | ${messages} | 1 |
 
         """
+        timer_start = time.time()
+        while time.time() < timer_start + self._loop_timeout:
+            if self._subscribed:
+                break;
+            time.sleep(1)
         if not self._subscribed:
             logger.warn('Cannot listen when not subscribed to a topic')
             return []
@@ -311,7 +333,6 @@ class MQTTKeywords(object):
         self._disconnected = False
         self._unexpected_disconnect = False
         self._mqttc.on_disconnect = self._on_disconnect
-
         self._mqttc.disconnect()
 
         timer_start = time.time()
@@ -417,7 +438,9 @@ class MQTTKeywords(object):
             % (payload, message.topic, str(message.qos)))
         if message.topic not in self._messages:
             self._messages[message.topic] = []
-        self._messages[message.topic].append(payload)
+        for sub in self._messages:
+            if topic_matches_sub(sub, message.topic):
+                self._messages[sub].append(payload)
 
     def _on_connect(self, client, userdata, flags, rc):
         self._connected = True if rc == 0 else False
