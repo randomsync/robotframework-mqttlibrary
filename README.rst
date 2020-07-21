@@ -71,11 +71,12 @@ Contributing
 
 The keywords in this library are based on some of the methods available in eclipse paho client library. If you'd like to add keywords, see instructions_ on creating/updating libraries for Robot Framework.
 
-The tests are in ``tests`` folder and make use of Robot Framework itself. They are run automatically through travis when code is pushed to a branch. Most of the tests rely on the public mqtt broker at iot.eclipse.org, but some that validate authentication rely on a local broker. You can start a local broker with the provided configuration. You can then run the tests locally::
+The tests are in ``tests`` folder and make use of Robot Framework itself. They are run automatically through travis when code is pushed to a branch. When run locally, these tests rely on locally running mqtt brokers. We need 2 running brokers, one without auth that is used by most of the tests, and the other one with auth (configuration file is provided). You'll need to start them before running the tests. You can then run the tests locally::
 
     docker pull eclipse-mosquitto
-    docker run -d -p 1883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
-    pybot -P src tests
+    docker run -d -p 1883:1883 eclipse-mosquitto
+    docker run -d -p 11883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
+    robot -P src tests
 
 
 Make sure to stop the docker container when it is no longer needed.
