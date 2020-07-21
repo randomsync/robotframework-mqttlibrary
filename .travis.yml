@@ -16,10 +16,9 @@ script:
 deploy:
   - provider: pypi
     user: __token__
-    password:
-      secure: RS3D0zpd+1+AnwtJUpeU+XssZOSZXly1MRaU6Eo6P0ziZp1dXV+83vANPaFT7Ik7KhO/I6BuNdNrgcbLMXIi0I1Pj9ZrZq0iJ9J6PH5U2BfoXDu7XIdep5fxch5k1FMLCNl2GAnam/NFmpB0sU5+aWgpwK4o5npQ6LKWwg4BhGebFnEc4O4O8erliqoiaC1W/WvZOSLRv9WQod+Hfwbcd13tiA43i4ZkrUWGD62hB0jFaaX9CaQRcYpYzTOUe7Npbt7vw9ZavZVQ9mEklG2ttiSMfMuYuUo9lZCGssMxQP4ghTspjdMiII4rkwV0SGib4mECY/qhbzUqmFzEUe4CTrn5WOhjW8zunQbQB3+nf5w0MsxJ3/Qu1N635Acinl4njPFrxkuYOU1Wnj+Nqy6i6LBdcUVXQ1E6kSSk1g/JaqSdbae+EhpybNOKZRVfkjgG8idKotmCqQxF7JyFmdstPB9dhUcMx8q3ubjmL49ju+qI2hrIrN7Dr/Y1AWCxVJb38dSNktEG2WCc3MUgpnKPLWuzuJn+zHo9S9rLL58m/nSiejZ9XUgi3gOzrFeovAOCWSp4ZLea2c43CTBeNBhQtrKyVFzUaxyqAlJsr4oK0LapvF117eiCy1smvBuflFMb99e7qjemYRZTcV04d4RCSsDgNLy+Xxz4Vi0DTWVCdAk=
+    password: $PYPI_TOKEN
     distributions: sdist bdist_wheel
-    cleanup: true
+    skip_cleanup: true
     on:
       repo: randomsync/robotframework-mqttlibrary
       tags: true
@@ -27,7 +26,7 @@ deploy:
     api_key:
       secure: JAaqldr74M3AwKBUAyCoeEdeFotPgXlSO7ML6IWpv327UXsz/CZyZg3lDnFZEPyUfzr/pndUEN/M/eeHTuLMXVhv5rdaiMWS5pXXcs6mmR7irT5LK3giRJKJpfNWcOTCRkotHJRkMC7vOuHWhuLrJ0a7v4yxZyTcqBsQUq+Qk/Q=
     file: dist/*
-    cleanup: true
+    skip_cleanup: true
     draft: true
     on:
       repo: randomsync/robotframework-mqttlibrary
