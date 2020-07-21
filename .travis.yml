@@ -15,8 +15,9 @@ script:
 - robot -P src tests
 deploy:
   - provider: pypi
-    user: __token__
-    password: $PYPI_TOKEN
+    user: randomsync
+    password:
+      secure: bbHK7u+MEnJ4YifZuSsF+O5HmIMvlfHaVd1u31k2Xdbj1aYsIz1tpD+iH4mYsinJ7YpnmfJAGArSPlemLEJC2kdRcnlSRQONtpUuooLG2PPQbwIgVtJh3gpxA06L1GxVoMeRWnCfqDttFSMIs7NTxA52UtalZbER5ALXB8StHn0=
     distributions: sdist bdist_wheel
     skip_cleanup: true
     on:
