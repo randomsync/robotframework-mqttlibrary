@@ -2,23 +2,25 @@ language: python
 services:
 - docker
 dist:
-- 'xenial'
+- xenial
 python:
 - '2.7'
 - '3.7'
 before_install:
 - docker pull eclipse-mosquitto
-- docker run -d -p 1883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
+- docker run -d -p 11883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
+- docker run -d -p 1883:1883 eclipse-mosquitto
 install:
 - pip install -r requirements.txt
 script:
 - robot -P src tests
 deploy:
+  matrix:
   - provider: pypi
-    user: randomsync
+    user: __token__
     password:
-      secure: bbHK7u+MEnJ4YifZuSsF+O5HmIMvlfHaVd1u31k2Xdbj1aYsIz1tpD+iH4mYsinJ7YpnmfJAGArSPlemLEJC2kdRcnlSRQONtpUuooLG2PPQbwIgVtJh3gpxA06L1GxVoMeRWnCfqDttFSMIs7NTxA52UtalZbER5ALXB8StHn0=
-    distributions: "sdist bdist_wheel"
+      secure: RS3D0zpd+1+AnwtJUpeU+XssZOSZXly1MRaU6Eo6P0ziZp1dXV+83vANPaFT7Ik7KhO/I6BuNdNrgcbLMXIi0I1Pj9ZrZq0iJ9J6PH5U2BfoXDu7XIdep5fxch5k1FMLCNl2GAnam/NFmpB0sU5+aWgpwK4o5npQ6LKWwg4BhGebFnEc4O4O8erliqoiaC1W/WvZOSLRv9WQod+Hfwbcd13tiA43i4ZkrUWGD62hB0jFaaX9CaQRcYpYzTOUe7Npbt7vw9ZavZVQ9mEklG2ttiSMfMuYuUo9lZCGssMxQP4ghTspjdMiII4rkwV0SGib4mECY/qhbzUqmFzEUe4CTrn5WOhjW8zunQbQB3+nf5w0MsxJ3/Qu1N635Acinl4njPFrxkuYOU1Wnj+Nqy6i6LBdcUVXQ1E6kSSk1g/JaqSdbae+EhpybNOKZRVfkjgG8idKotmCqQxF7JyFmdstPB9dhUcMx8q3ubjmL49ju+qI2hrIrN7Dr/Y1AWCxVJb38dSNktEG2WCc3MUgpnKPLWuzuJn+zHo9S9rLL58m/nSiejZ9XUgi3gOzrFeovAOCWSp4ZLea2c43CTBeNBhQtrKyVFzUaxyqAlJsr4oK0LapvF117eiCy1smvBuflFMb99e7qjemYRZTcV04d4RCSsDgNLy+Xxz4Vi0DTWVCdAk=
+    distributions: sdist bdist_wheel
     skip_cleanup: true
     on:
       repo: randomsync/robotframework-mqttlibrary

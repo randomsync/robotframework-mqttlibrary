@@ -4,7 +4,7 @@
 | Test Timeout  | 30 seconds
 
 *** Variables ***
-| ${broker.uri}     | mqtt.eclipse.org
+| ${broker.uri}     | 127.0.0.1
 | ${broker.port}    | 1883
 | ${client.id}      | mqtt.test.client
 | ${topic}          | test/mqtt_test

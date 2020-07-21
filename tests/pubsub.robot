@@ -22,7 +22,6 @@
 | | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${message}
 
 | Publish multiple messages and confirm that validation succeeds only after correct message is published
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -39,7 +38,6 @@
 | | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${message}
 
 | Publish an empty message with QOS 1 and validate
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -49,7 +47,6 @@
 | | Subscribe to MQTT Broker and Validate       | client.id=${client}     | topic=${topic}
 
 | Publish and validate with regular expression
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -61,7 +58,6 @@
 | | Subscribe to MQTT Broker and Validate       | client.id=${client}   | topic=${topic}        | message=${regex}
 
 | Subscribe for the first time and validate that no messages are received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -70,7 +66,6 @@
 | | Length Should Be    | ${messages}   | 0
 
 | Subscribe, publish 1 message and validate it is received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -82,7 +77,6 @@
 | | Should Be Equal As Strings  | ${messages}[0]    | test message
 
 | Subscribe with no limit, publish multiple messages and validate they are received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -98,7 +92,6 @@
 | | Should Be Equal As Strings  | ${messages}[2]    | test message3
 
 | Subscribe with limit
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -117,7 +110,6 @@
 | | Should Be Equal As Strings  | ${messages}[1]    | test message3
 
 | Unsubscribe and validate no messages are received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
@@ -137,12 +129,12 @@
 | | ${message}  | Set Variable  | subscription test message
 | | Set username and password   | authuser1     | password1
 | | Run Keyword And Expect Error                | The expected payload didn't arrive in the topic
-| | ... | Subscribe to MQTT Broker and Validate | broker.uri=127.0.0.1  | client.id=${client}
+| | ... | Subscribe to MQTT Broker and Validate | broker.uri=127.0.0.1  | port=11883    | client.id=${client}
 | | ... | topic=${topic}        | message=${message}
-| | Connect     | 127.0.0.1
+| | Connect     | 127.0.0.1     | 11883
 | | Publish     | ${topic}      | test message with username and password   | qos=1
 | | Subscribe to MQTT Broker and Validate
-| | ...         | broker.uri=127.0.0.1  | client.id=${client}   | topic=${topic}        | message=test message with username and password
+| | ...         | broker.uri=127.0.0.1  | port=11883    | client.id=${client}   | topic=${topic}        | message=test message with username and password
 | | [Teardown]  | Disconnect
 
 | Publish to a broker that requires authentication with invalid password
@@ -152,17 +144,15 @@
 | | ${topic}    | Set Variable  | test
 | | Set username and password   | authuser1     | invalidpwd
 | | Run Keyword and expect error    | The client disconnected unexpectedly
-| | ...         | Connect     | 127.0.0.1     | 1883          | ${client}
+| | ...         | Connect     | 127.0.0.1     | 11883          | ${client}
 | | [Teardown]  | Disconnect
 
 | Subscribe async, publish 1 message, listen for and validate it is received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
 | | Subscribe Async | client.id=${client}   | topic=${topic}
 | | Publish to MQTT Broker   | topic=${topic}    | message=test message      | qos=1
-| | Sleep       | 5s
 | | @{messages} | Listen and Get Messages    | topic=${topic}
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
@@ -170,17 +160,13 @@
 | | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
 
 | Subscribe async, publish several messages, listen for and validate they are received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
 | | Subscribe Async | client.id=${client}   | topic=${topic}
 | | Publish to MQTT Broker   | topic=${topic}    | message=test message1      | qos=1
-| | Sleep       | 1s
 | | Publish to MQTT Broker   | topic=${topic}    | message=test message2      | qos=1
-| | Sleep       | 1s
 | | Publish to MQTT Broker   | topic=${topic}    | message=test message3      | qos=1
-| | Sleep       | 5s
 | | @{messages} | Listen and Get Messages    | topic=${topic} | limit=0
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 3
@@ -190,7 +176,6 @@
 | | [Teardown]  | Unsubscribe and Disconnect  | ${topic}
 
 | Subscribe async to multiple topics, publish several messages, listen for them and validate they are received
-| | Sleep       | 1s
 | | ${time}     | Get Time      | epoch
 | | ${client1}  | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${client2}  | Catenate      | SEPARATOR=.   | robot.mqtt | ${time+1}
@@ -199,11 +184,8 @@
 | | Subscribe Async | client.id=${client1}   | topic=${topic1}
 | | Subscribe Async | client.id=${client2}   | topic=${topic2}
 | | Publish to MQTT Broker   | topic=${topic2}    | message=test message1      | qos=1
-| | Sleep       | 1s
 | | Publish to MQTT Broker   | topic=${topic1}    | message=test message2      | qos=1
-| | Sleep       | 1s
 | | Publish to MQTT Broker   | topic=${topic2}    | message=test message3      | qos=1
-| | Sleep       | 5s
 | | @{messages1} | Listen and Get Messages    | topic=${topic1} | limit=0
 | | @{messages2} | Listen and Get Messages    | topic=${topic2} | limit=0
 | | LOG         | ${messages1}
