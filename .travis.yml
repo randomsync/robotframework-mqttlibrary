@@ -2,7 +2,7 @@ language: python
 services:
 - docker
 dist:
-- 'xenial'
+- xenial
 python:
 - '2.7'
 - '3.7'
@@ -10,17 +10,17 @@ before_install:
 - docker pull eclipse-mosquitto
 - docker run -d -p 11883:1883 -p 9001:9001 -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto
 - docker run -d -p 1883:1883 eclipse-mosquitto
-
 install:
 - pip install -r requirements.txt
 script:
 - robot -P src tests
 deploy:
+  matrix:
   - provider: pypi
-    user: "__token__"
+    user: __token__
     password:
-      secure: FNm4pha9uqgxkYHqcD9tKpaIbiw1Ue0QNJpxFBvz+ItHNHJ3KJfKHzpU45bRFpDXDjY0x9cLVDWCfAWqxCoBy6+fiBGpqfUwPR/2fgcQnelA3YdhtkQXrM47O42RuPIUPHk1ymG+v54YwWM6NbCNU8GI4NPFMAQeBOdwF8V2P6jMiUq57y5Clq7XzmHQgww23IQje9JSjsIjV45CXkeQemBV2rcZqYofaQNQwJSFtKoT1aZvT44ZRDfShoOt9JC9C7x+9ktPjO9V4T333A+FsjNTfv1QBWGsaqKybQp80rM3I3NmWTBRAswccodVEXvJAKjMxONr28CKSOPw1d2o72c7GZ0gsh8KH70SybSk9Fc2Gn1xkQPb22mhhS2KgF9RmM/jOZ8lTv0MRpHLB2Eqo9SE2B7crb4jOEY9ki4lElxPyGsOnglWUZLq1rFzQqu/nAoAooBdJvgaoPB5nEs2IElyYYP9xqjgxg1HbvqUUl8s4MsGHjiMxjY2XW8aIYz8m0tP1lt0eTBPdxRrXR7C0Bet4HfzTRI9O7A2qK2wqNNo6MW/OYjb3pAqRiWJpFFX9sTQTIiKx0FFjgqEFF2QQ9B9zVyYLlVm+8+Iojz+cLaZ/viNS7MBIZlfO7quV4HXqwHQX76hqtXjQ7r6oYBnXyZ+wA0hfcTDuMkd74Aawm0=
-    distributions: "sdist bdist_wheel"
+      secure: RS3D0zpd+1+AnwtJUpeU+XssZOSZXly1MRaU6Eo6P0ziZp1dXV+83vANPaFT7Ik7KhO/I6BuNdNrgcbLMXIi0I1Pj9ZrZq0iJ9J6PH5U2BfoXDu7XIdep5fxch5k1FMLCNl2GAnam/NFmpB0sU5+aWgpwK4o5npQ6LKWwg4BhGebFnEc4O4O8erliqoiaC1W/WvZOSLRv9WQod+Hfwbcd13tiA43i4ZkrUWGD62hB0jFaaX9CaQRcYpYzTOUe7Npbt7vw9ZavZVQ9mEklG2ttiSMfMuYuUo9lZCGssMxQP4ghTspjdMiII4rkwV0SGib4mECY/qhbzUqmFzEUe4CTrn5WOhjW8zunQbQB3+nf5w0MsxJ3/Qu1N635Acinl4njPFrxkuYOU1Wnj+Nqy6i6LBdcUVXQ1E6kSSk1g/JaqSdbae+EhpybNOKZRVfkjgG8idKotmCqQxF7JyFmdstPB9dhUcMx8q3ubjmL49ju+qI2hrIrN7Dr/Y1AWCxVJb38dSNktEG2WCc3MUgpnKPLWuzuJn+zHo9S9rLL58m/nSiejZ9XUgi3gOzrFeovAOCWSp4ZLea2c43CTBeNBhQtrKyVFzUaxyqAlJsr4oK0LapvF117eiCy1smvBuflFMb99e7qjemYRZTcV04d4RCSsDgNLy+Xxz4Vi0DTWVCdAk=
+    distributions: sdist bdist_wheel
     skip_cleanup: true
     on:
       repo: randomsync/robotframework-mqttlibrary
