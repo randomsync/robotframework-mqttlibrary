@@ -36,7 +36,8 @@ class MQTTKeywords(object):
         self._username = None
         self._password = None
         #self._mqttc = mqtt.Client()
-
+        self.msg_tmp = {}
+        
     def set_username_and_password(self, username, password=None):
         self._username = username
         self._password = password
@@ -149,7 +150,10 @@ class MQTTKeywords(object):
 
         """
         seconds = convert_time(timeout)
-        self._messages[topic] = []
+        try:
+            self._messages[topic] = [i for i in self._messages[topic] if i not in self.msg_tmp[topic]]
+        except KeyError:
+            self._messages[topic] = []
         limit = int(limit)
         self._subscribed = False
 
@@ -163,6 +167,7 @@ class MQTTKeywords(object):
             logger.info('Starting background loop')
             self._background_mqttc = self._mqttc
             self._background_mqttc.loop_start()
+            self.msg_tmp = self._messages
             return self._messages[topic]
 
         timer_start = time.time()
@@ -176,6 +181,7 @@ class MQTTKeywords(object):
                 # next connect.
                 time.sleep(1)
                 break
+        self.msg_tmp = self._messages
         return self._messages[topic]
 
     def listen(self, topic, timeout=1, limit=1):
@@ -215,7 +221,11 @@ class MQTTKeywords(object):
         # If enough messages have already been gathered, return them
         if limit != 0 and len(self._messages[topic]) >= limit:
             messages = self._messages[topic][:]  # Copy the list's contents
-            self._messages[topic] = []
+            try:
+                self._messages[topic] = [i for i in self._messages[topic] if i not in self.msg_tmp[topic]]
+            except KeyError:
+                self._messages[topic] = []
+            self.msg_tmp = self._messages
             return messages[-limit:]
 
         seconds = convert_time(timeout)
@@ -241,7 +251,11 @@ class MQTTKeywords(object):
                 break
 
         messages = self._messages[topic][:]  # Copy the list's contents
-        self._messages[topic] = []
+        try:
+            self._messages[topic] = [i for i in self._messages[topic] if i not in self.msg_tmp[topic]]
+        except KeyError:
+            self._messages[topic] = []
+        self.msg_tmp = self._messages
         return messages[-limit:] if limit != 0 else messages
 
     def subscribe_and_validate(self, topic, qos, payload, timeout=1):
