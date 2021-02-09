@@ -41,7 +41,7 @@ class MQTTKeywords(object):
         self._username = username
         self._password = password
 
-    def connect(self, broker, port=1883, client_id="", clean_session=True):
+    def connect(self, broker, port=1883, client_id="", clean_session=True, transport="tcp"):
         """ Connect to an MQTT broker. This is a pre-requisite step for publish
         and subscribe keywords.
 
@@ -52,6 +52,8 @@ class MQTTKeywords(object):
         `client_id` if not specified, a random id is generated
 
         `clean_session` specifies the clean session flag for the connection
+
+        `tranport` use "websockets" to send MQTT over WebSockets, leave at the default of "tcp" to use raw TCP
 
         Examples:
 
@@ -64,11 +66,14 @@ class MQTTKeywords(object):
         Connect to a broker with clean session flag set to false
         | Connect | 127.0.0.1 | clean_session=${false} |
 
+        Connect to a broker using websockets
+        | Connect | 127.0.0.1 | transport=websockets
+
         """
         logger.info('Connecting to %s at port %s' % (broker, port))
         self._connected = False
         self._unexpected_disconnect = False
-        self._mqttc = mqtt.Client(client_id, clean_session)
+        self._mqttc = mqtt.Client(client_id, clean_session, transport=transport)
 
         # set callbacks
         self._mqttc.on_connect = self._on_connect
