@@ -80,14 +80,17 @@ class MQTTKeywords(object):
         self._mqttc.connect(broker, int(port))
 
         timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if self._connected or self._unexpected_disconnect:
-                break;
-            self._mqttc.loop()
-
-        if self._unexpected_disconnect:
-            raise RuntimeError("The client disconnected unexpectedly")
-        logger.debug('client_id: %s' % self._mqttc._client_id)
+        try:
+            self._mqttc.loop_start()
+            while time.time() < timer_start + self._loop_timeout:
+                time.sleep(1e-3)
+                if self._connected or self._unexpected_disconnect:
+                    break
+            if self._unexpected_disconnect:
+                raise RuntimeError("The client disconnected unexpectedly")
+            logger.debug('client_id: %s' % self._mqttc._client_id)
+        finally:
+            self._mqttc.loop_stop()
         return self._mqttc
 
     def publish(self, topic, message=None, qos=0, retain=False):
@@ -108,22 +111,26 @@ class MQTTKeywords(object):
         | Publish | test/test | test message | 1 | ${false} |
 
         """
-        logger.info('Publish topic: %s, message: %s, qos: %s, retain: %s'
-            % (topic, message, qos, retain))
-        self._mid = -1
-        self._mqttc.on_publish = self._on_publish
-        result, mid = self._mqttc.publish(topic, message, int(qos), retain)
-        if result != 0:
-            raise RuntimeError('Error publishing: %s' % result)
+        try:
+            self._mqttc.loop_start()
+            logger.info('Publish topic: %s, message: %s, qos: %s, retain: %s'
+                % (topic, message, qos, retain))
+            self._mid = -1
+            self._mqttc.on_publish = self._on_publish
+            
+            result, mid = self._mqttc.publish(topic, message, int(qos), retain)
+            if result != 0:
+                raise RuntimeError('Error publishing: %s' % result)
 
-        timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if mid == self._mid:
-                break;
-            self._mqttc.loop()
-
-        if mid != self._mid:
-            logger.warn('mid wasn\'t matched: %s' % mid)
+            timer_start = time.time()
+            while time.time() < timer_start + self._loop_timeout:
+                if mid == self._mid:
+                    break
+            
+            if mid != self._mid:
+                logger.warn('mid wasn\'t matched: %s' % mid)
+        finally:
+            self._mqttc.loop_stop()
 
     def subscribe(self, topic, qos, timeout=1, limit=1):
         """ Subscribe to a topic and return a list of message payloads received
@@ -166,17 +173,16 @@ class MQTTKeywords(object):
             return self._messages[topic]
 
         timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages[topic]) < limit:
-                self._mqttc.loop()
-            else:
-                # workaround for client to ack the publish. Otherwise,
-                # it seems that if client disconnects quickly, broker
-                # will not get the ack and publish the message again on
-                # next connect.
-                time.sleep(1)
-                break
+
+        self._mqttc.loop_start()
+        try:
+            while time.time() < timer_start + seconds:
+                if limit == 0 or len(self._messages[topic]) < limit:
+                    time.sleep(1e-3)
+        finally:
+            self._mqttc.loop_stop()
         return self._messages[topic]
+        
 
     def listen(self, topic, timeout=1, limit=1):
         """ Listen to a topic and return a list of message payloads received
@@ -202,7 +208,7 @@ class MQTTKeywords(object):
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
             if self._subscribed:
-                break;
+                break
             time.sleep(1)
         if not self._subscribed:
             logger.warn('Cannot listen when not subscribed to a topic')
@@ -223,22 +229,15 @@ class MQTTKeywords(object):
 
         logger.info('Listening on topic: %s' % topic)
         timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages[topic]) < limit:
-                # If the loop is running in the background
-                # merely sleep here for a second or so and continue
-                # otherwise, do the loop ourselves
-                if self._background_mqttc:
-                    time.sleep(1)
+        self._mqttc.loop_start()
+        try:
+            while time.time() < timer_start + seconds:
+                if limit == 0 or len(self._messages[topic]) < limit:
+                    time.sleep(1e-3)
                 else:
-                    self._mqttc.loop()
-            else:
-                # workaround for client to ack the publish. Otherwise,
-                # it seems that if client disconnects quickly, broker
-                # will not get the ack and publish the message again on
-                # next connect.
-                time.sleep(1)
-                break
+                    break
+        finally:
+            self._mqttc.loop_stop()
 
         messages = self._messages[topic][:]  # Copy the list's contents
         self._messages[topic] = []
@@ -273,13 +272,17 @@ class MQTTKeywords(object):
         self._mqttc.subscribe(str(topic), int(qos))
 
         timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if self._verified:
-                break
-            self._mqttc.loop()
+        self._mqttc.loop_start()
+        try:
+            while time.time() < timer_start + seconds:
+                if self._verified:
+                    break
+                time.sleep(1e-3)
 
-        if not self._verified:
-            raise AssertionError("The expected payload didn't arrive in the topic")
+            if not self._verified:
+                raise AssertionError("The expected payload didn't arrive in the topic")
+        finally:
+            self._mqttc.loop_stop()
 
     def unsubscribe(self, topic):
         """ Unsubscribe the client from the specified topic.
@@ -309,13 +312,17 @@ class MQTTKeywords(object):
         self._mqttc.on_unsubscribe = self._on_unsubscribe
         self._mqttc.unsubscribe(str(topic))
 
+        self._mqttc.loop_start()
         timer_start = time.time()
-        while (not self._unsubscribed and
-                time.time() < timer_start + self._loop_timeout):
-            self._mqttc.loop()
+        try:
+            while (not self._unsubscribed and
+                    time.time() < timer_start + self._loop_timeout):
+                time.sleep(1e-3)
 
-        if not self._unsubscribed:
-            logger.warn('Client didn\'t receive an unsubscribe callback')
+            if not self._unsubscribed:
+                logger.warn('Client didn\'t receive an unsubscribe callback')
+        finally:
+            self._mqttc.loop_stop()
 
     def disconnect(self):
         """ Disconnect from MQTT Broker.
@@ -336,12 +343,18 @@ class MQTTKeywords(object):
         self._mqttc.disconnect()
 
         timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if self._disconnected or self._unexpected_disconnect:
-                break;
-            self._mqttc.loop()
-        if self._unexpected_disconnect:
-            raise RuntimeError("The client disconnected unexpectedly")
+        self._mqttc.loop_start()
+        try:
+            while time.time() < timer_start + self._loop_timeout:
+                if self._disconnected or self._unexpected_disconnect:
+                    break
+            
+            if self._unexpected_disconnect:
+                raise RuntimeError("The client disconnected unexpectedly")
+
+        finally:        
+            self._mqttc.loop_stop()
+        
 
     def publish_single(self, topic, payload=None, qos=0, retain=False,
             hostname="localhost", port=1883, client_id="", keepalive=60,
@@ -446,11 +459,12 @@ class MQTTKeywords(object):
         self._connected = True if rc == 0 else False
 
     def _on_disconnect(self, client, userdata, rc):
-        if rc == 0:
-            self._disconnected = True
-            self._unexpected_disconnect = False
-        else:
-            self._unexpected_disconnect = True
+        pass
+        # if rc == 0:
+        #     self._disconnected = True
+        #     self._unexpected_disconnect = False
+        # else:
+        #     self._unexpected_disconnect = True
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         self._subscribed = True
