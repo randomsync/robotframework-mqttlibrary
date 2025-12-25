@@ -1,12 +1,12 @@
 from paho.mqtt.matcher import MQTTMatcher
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
-import robot
 import time
 import re
 
 from robot.libraries.DateTime import convert_time
 from robot.api import logger
+
 
 # https://github.com/eclipse/paho.mqtt.python/blob/1eec03edf39128e461e6729694cf5d7c1959e5e4/src/paho/mqtt/client.py#L250
 def topic_matches_sub(sub, topic):
@@ -23,6 +23,7 @@ def topic_matches_sub(sub, topic):
     except StopIteration:
         return False
 
+
 class MQTTKeywords(object):
 
     # Timeout used for all blocking loop* functions. This serves as a
@@ -35,7 +36,7 @@ class MQTTKeywords(object):
         self._messages = {}
         self._username = None
         self._password = None
-        #self._mqttc = mqtt.Client()
+        # self._mqttc = mqtt.Client()
 
     def set_username_and_password(self, username, password=None):
         self._username = username
@@ -68,7 +69,11 @@ class MQTTKeywords(object):
         logger.info('Connecting to %s at port %s' % (broker, port))
         self._connected = False
         self._unexpected_disconnect = False
-        self._mqttc = mqtt.Client(client_id, clean_session)
+        self._mqttc = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=client_id,
+            clean_session=clean_session
+        )
 
         # set callbacks
         self._mqttc.on_connect = self._on_connect
@@ -82,7 +87,7 @@ class MQTTKeywords(object):
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
             if self._connected or self._unexpected_disconnect:
-                break;
+                break
             self._mqttc.loop()
 
         if self._unexpected_disconnect:
@@ -108,8 +113,10 @@ class MQTTKeywords(object):
         | Publish | test/test | test message | 1 | ${false} |
 
         """
-        logger.info('Publish topic: %s, message: %s, qos: %s, retain: %s'
-            % (topic, message, qos, retain))
+        logger.info(
+            'Publish topic: %s, message: %s, qos: %s, retain: %s'
+            % (topic, message, qos, retain)
+        )
         self._mid = -1
         self._mqttc.on_publish = self._on_publish
         result, mid = self._mqttc.publish(topic, message, int(qos), retain)
@@ -119,7 +126,7 @@ class MQTTKeywords(object):
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
             if mid == self._mid:
-                break;
+                break
             self._mqttc.loop()
 
         if mid != self._mid:
@@ -133,7 +140,8 @@ class MQTTKeywords(object):
 
         `qos` quality of service for the subscription
 
-        `timeout` duration of subscription. Specify 0 to enable background looping (async)
+        `timeout` duration of subscription. Specify 0 to enable background
+            looping (async)
 
         `limit` the max number of payloads that will be returned. Specify 0
             for no limit
@@ -180,7 +188,8 @@ class MQTTKeywords(object):
 
     def listen(self, topic, timeout=1, limit=1):
         """ Listen to a topic and return a list of message payloads received
-            within the specified time. Requires an async Subscribe to have been called previously.
+            within the specified time. Requires an async Subscribe to have
+            been called previously.
 
         `topic` topic to listen to
 
@@ -202,14 +211,17 @@ class MQTTKeywords(object):
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
             if self._subscribed:
-                break;
+                break
             time.sleep(1)
         if not self._subscribed:
             logger.warn('Cannot listen when not subscribed to a topic')
             return []
 
         if topic not in self._messages:
-            logger.warn('Cannot listen when not subscribed to topic: %s' % topic)
+            logger.warn(
+                'Cannot listen when not subscribed to topic: %s'
+                % topic
+            )
             return []
 
         # If enough messages have already been gathered, return them
@@ -279,7 +291,9 @@ class MQTTKeywords(object):
             self._mqttc.loop()
 
         if not self._verified:
-            raise AssertionError("The expected payload didn't arrive in the topic")
+            raise AssertionError(
+                "The expected payload didn't arrive in the topic"
+            )
 
     def unsubscribe(self, topic):
         """ Unsubscribe the client from the specified topic.
@@ -291,9 +305,11 @@ class MQTTKeywords(object):
 
         """
         try:
-            tmp = self._mqttc
+            self._mqttc
         except AttributeError:
-            logger.info('No MQTT Client instance found so nothing to unsubscribe from.')
+            logger.info(
+                'No MQTT Client instance found so nothing to unsubscribe from.'
+            )
             return
 
         if self._background_mqttc:
@@ -325,9 +341,11 @@ class MQTTKeywords(object):
 
         """
         try:
-            tmp = self._mqttc
+            self._mqttc
         except AttributeError:
-            logger.info('No MQTT Client instance found so nothing to disconnect from.')
+            logger.info(
+                'No MQTT Client instance found so nothing to disconnect from.'
+            )
             return
 
         self._disconnected = False
@@ -338,14 +356,16 @@ class MQTTKeywords(object):
         timer_start = time.time()
         while time.time() < timer_start + self._loop_timeout:
             if self._disconnected or self._unexpected_disconnect:
-                break;
+                break
             self._mqttc.loop()
         if self._unexpected_disconnect:
             raise RuntimeError("The client disconnected unexpectedly")
 
-    def publish_single(self, topic, payload=None, qos=0, retain=False,
-            hostname="localhost", port=1883, client_id="", keepalive=60,
-            will=None, auth=None, tls=None, protocol=mqtt.MQTTv31):
+    def publish_single(
+        self, topic, payload=None, qos=0, retain=False,
+        hostname="localhost", port=1883, client_id="", keepalive=60,
+        will=None, auth=None, tls=None, protocol=mqtt.MQTTv31
+    ):
 
         """ Publish a single message and disconnect. This keyword uses the
         [http://eclipse.org/paho/clients/python/docs/#single|single]
@@ -389,12 +409,16 @@ class MQTTKeywords(object):
         """
         logger.info('Publishing to: %s:%s, topic: %s, payload: %s, qos: %s' %
                     (hostname, port, topic, payload, qos))
-        publish.single(topic, payload, qos, retain, hostname, port,
-                        client_id, keepalive, will, auth, tls, protocol)
+        publish.single(
+            topic, payload, qos, retain, hostname, port,
+            client_id, keepalive, will, auth, tls, protocol
+        )
 
-    def publish_multiple(self, msgs, hostname="localhost", port=1883,
-            client_id="", keepalive=60, will=None, auth=None,
-            tls=None, protocol=mqtt.MQTTv31):
+    def publish_multiple(
+        self, msgs, hostname="localhost", port=1883,
+        client_id="", keepalive=60, will=None, auth=None,
+        tls=None, protocol=mqtt.MQTTv31
+    ):
 
         """ Publish multiple messages and disconnect. This keyword uses the
         [http://eclipse.org/paho/clients/python/docs/#multiple|multiple]
@@ -423,40 +447,46 @@ class MQTTKeywords(object):
         """
         logger.info('Publishing to: %s:%s, msgs: %s' %
                     (hostname, port, msgs))
-        publish.multiple(msgs, hostname, port, client_id, keepalive,
-                        will, auth, tls, protocol)
+        publish.multiple(
+            msgs, hostname, port, client_id, keepalive,
+            will, auth, tls, protocol
+        )
 
     def _on_message(self, client, userdata, message):
         payload = message.payload.decode('utf-8')
-        logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (payload, message.topic, str(message.qos)))
+        logger.debug(
+            'Received message: %s on topic: %s with QoS: %s'
+            % (payload, message.topic, str(message.qos))
+        )
         self._verified = re.match(self._payload, payload)
 
     def _on_message_list(self, client, userdata, message):
         payload = message.payload.decode('utf-8')
-        logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (payload, message.topic, str(message.qos)))
+        logger.debug(
+            'Received message: %s on topic: %s with QoS: %s'
+            % (payload, message.topic, str(message.qos))
+        )
         if message.topic not in self._messages:
             self._messages[message.topic] = []
         for sub in self._messages:
             if topic_matches_sub(sub, message.topic):
                 self._messages[sub].append(payload)
 
-    def _on_connect(self, client, userdata, flags, rc):
-        self._connected = True if rc == 0 else False
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
+        self._connected = True if reason_code == 0 else False
 
-    def _on_disconnect(self, client, userdata, rc):
-        if rc == 0:
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
             self._disconnected = True
             self._unexpected_disconnect = False
         else:
             self._unexpected_disconnect = True
 
-    def _on_subscribe(self, client, userdata, mid, granted_qos):
+    def _on_subscribe(self, client, userdata, mid, reason_codes, properties):
         self._subscribed = True
 
-    def _on_unsubscribe(self, client, userdata, mid):
+    def _on_unsubscribe(self, client, userdata, mid, reason_codes, properties):
         self._unsubscribed = True
 
-    def _on_publish(self, client, userdata, mid):
+    def _on_publish(self, client, userdata, mid, reason_codes, properties):
         self._mid = mid
