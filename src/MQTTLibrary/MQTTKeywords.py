@@ -364,7 +364,7 @@ class MQTTKeywords(object):
     def publish_single(
         self, topic, payload=None, qos=0, retain=False,
         hostname="localhost", port=1883, client_id="", keepalive=60,
-        will=None, auth=None, tls=None, protocol=mqtt.MQTTv31
+        will=None, auth=None, tls=None, protocol=mqtt.MQTTv5
     ):
 
         """ Publish a single message and disconnect. This keyword uses the
@@ -399,7 +399,7 @@ class MQTTKeywords(object):
                 'keyfile':"<keyfile>", 'tls_version':"<tls_version>",
                 'ciphers':"<ciphers">}
 
-        `protocol` MQTT protocol version (MQTTv31 or MQTTv311)
+        `protocol` MQTT protocol version (MQTTv31, MQTTv311 or MQTTv5)
 
         Example:
 
@@ -417,7 +417,7 @@ class MQTTKeywords(object):
     def publish_multiple(
         self, msgs, hostname="localhost", port=1883,
         client_id="", keepalive=60, will=None, auth=None,
-        tls=None, protocol=mqtt.MQTTv31
+        tls=None, protocol=mqtt.MQTTv5
     ):
 
         """ Publish multiple messages and disconnect. This keyword uses the
