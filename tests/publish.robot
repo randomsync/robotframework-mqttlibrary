@@ -1,5 +1,5 @@
 *** Settings ***
-| Library       | MQTTLibrary
+| Library       | ../src/MQTTLibrary/MQTTKeywords.py
 | Library       | Collections
 | Test Timeout  | 30 seconds
 

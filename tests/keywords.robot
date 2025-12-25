@@ -1,6 +1,5 @@
 | *Settings*    | *Value*
-| Library       | MQTTLibrary
-| Library       | BuiltIn
+| Library       | ../src/MQTTLibrary/MQTTKeywords.py
 
 | *Variables*       | *Value*
 #| ${broker.uri}     | mqtt.eclipse.org
@@ -51,7 +50,7 @@
 | | Connect     | ${broker.uri} | ${port}       | ${client.id}  | ${false}
 | | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
 | | [Teardown]  | Disconnect
-| | [Return]    | @{messages}
+| | RETURN    | @{messages}
 
 | Subscribe Async
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
@@ -82,10 +81,10 @@
 | | @{messages} | Subscribe     | ${topic} | ${qos} | ${timeout}    | ${limit}
 | | Unsubscribe | ${topic}
 | | [Teardown]  | Disconnect
-| | [Return]    | @{messages}
+| | RETURN    | @{messages}
 
 | Listen and Get Messages
 | | [Arguments] | ${topic}=${topic}   | ${timeout}=1s
 | | ...         | ${limit}=1
 | | @{messages} | Listen     | ${topic} | ${timeout}    | ${limit}
-| | [Return]    | @{messages}
+| | RETURN    | @{messages}
