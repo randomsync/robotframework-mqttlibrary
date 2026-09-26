@@ -1,2 +1,3 @@
-paho-mqtt~=1.1
-robotframework~=3.0
+# Versions CI tests the 0.7.x line against.
+paho-mqtt~=1.6
+robotframework~=7.0

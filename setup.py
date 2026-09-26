@@ -17,6 +17,7 @@ setup(
     version           = VERSION,
     description       = 'MQTT Keyword Library Robot Framework',
     long_description  = long_description,
+    long_description_content_type = 'text/x-rst',
     url               = 'https://github.com/randomsync/robotframework-mqttlibrary',
     author            = 'Gaurav Gupta',
     author_email      = 'gaurav@randomsync.net',
@@ -31,5 +32,5 @@ setup(
     keywords          = 'robotframework testing testautomation mqtt',
     package_dir       = {'': 'src'},
     packages          = ['MQTTLibrary'],
-    install_requires  = ['robotframework', 'paho-mqtt'],
+    install_requires  = ['robotframework', 'paho-mqtt>=1.1,<2'],
 )
