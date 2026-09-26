@@ -1,19 +1,25 @@
 # Test brokers for the acceptance suite. Start with: docker compose up --wait
+x-mosquitto-image: &mosquitto-image eclipse-mosquitto:2.1-alpine
+
 services:
   anonymous:
-    image: eclipse-mosquitto:2
+    image: *mosquitto-image
     ports:
       - "1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     healthcheck:
       test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
-      interval: 5s
+      # Probe every second while starting, then every 30s so the checks do
+      # not crowd the broker log.
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 3
 
   auth:
-    image: eclipse-mosquitto:2
+    image: *mosquitto-image
     ports:
       - "11883:1883"
       - "9001:9001"
@@ -21,14 +27,19 @@ services:
       - ./mosquitto/mosquitto-auth.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/passwd_file:/mosquitto/fixtures/passwd_file:ro
     # Mosquitto requires the password file to be owned by its user and not
-    # world-readable, which a bind mount cannot guarantee, so copy it in.
+    # readable by others, which a bind mount cannot guarantee, so copy it in.
     command: >-
-      sh -c "install -m 0700 -o mosquitto -g mosquitto
+      sh -c "install -m 0600 -o mosquitto -g mosquitto
       /mosquitto/fixtures/passwd_file /mosquitto/config/passwd_file
       && exec mosquitto -c /mosquitto/config/mosquitto.conf"
+    # A TCP probe on both listeners, so the check does not depend on the test
+    # credentials. Wrong credentials show up as "Not authorized" in the tests.
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-u", "authuser1", "-P", "password1",
-             "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
-      interval: 5s
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883 && nc -z 127.0.0.1 9001"]
+      # Probe every second while starting, then every 30s so the checks do
+      # not crowd the broker log.
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 3

@@ -1,9 +1,6 @@
 MQTTLibrary for Robot Framework
 ===============================
 
-.. image:: https://travis-ci.org/randomsync/robotframework-mqttlibrary.svg?branch=master
-    :target: https://travis-ci.org/randomsync/robotframework-mqttlibrary
-
 .. image:: https://badge.fury.io/py/robotframework-mqttlibrary.svg
     :target: https://badge.fury.io/py/robotframework-mqttlibrary
 
