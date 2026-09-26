@@ -9,13 +9,19 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+### Added
+
+- Tests run on GitHub Actions for every push to master and every pull
+  request, against the docker compose brokers ([#41](https://github.com/randomsync/robotframework-mqttlibrary/issues/41)).
+
 ### Changed
 
 - Test brokers now run on Mosquitto 2 through `docker compose up --wait`,
   with explicit listener configs and a regenerated password file ([#40](https://github.com/randomsync/robotframework-mqttlibrary/issues/40)).
-- Tests run on GitHub Actions for every push to master and every pull
-  request, against the docker compose brokers ([#41](https://github.com/randomsync/robotframework-mqttlibrary/issues/41)).
-- Removed the Travis CI configuration and badge; travis-ci.org has shut down.
+
+### Removed
+
+- The Travis CI configuration and badge, since travis-ci.org has shut down.
   That configuration also published tagged releases to PyPI, which stopped
   working when Travis shut down. Until a GitHub Actions release workflow
   lands ([#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)), releases are built and uploaded by hand, starting

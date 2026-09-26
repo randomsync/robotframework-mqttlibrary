@@ -1,7 +1,7 @@
 MQTTLibrary for Robot Framework
 ===============================
 
-.. image:: https://github.com/randomsync/robotframework-mqttlibrary/actions/workflows/ci.yml/badge.svg?branch=master
+.. image:: https://github.com/randomsync/robotframework-mqttlibrary/actions/workflows/ci.yml/badge.svg?branch=master&event=push
     :target: https://github.com/randomsync/robotframework-mqttlibrary/actions/workflows/ci.yml
     :alt: CI
 
