@@ -25,12 +25,13 @@ setup(
     classifiers       = [
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.7',
+        'Framework :: Robot Framework :: Library',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3 :: Only',
         'Topic :: Software Development :: Testing',
     ],
     keywords          = 'robotframework testing testautomation mqtt',
     package_dir       = {'': 'src'},
     packages          = ['MQTTLibrary'],
-    install_requires  = ['robotframework', 'paho-mqtt>=1.1,<2'],
+    install_requires  = ['robotframework', 'paho-mqtt>=1.3,<2'],
 )
