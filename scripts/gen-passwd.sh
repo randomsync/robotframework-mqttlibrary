@@ -3,8 +3,9 @@
 # These are test fixtures only; the passwords are not secrets.
 set -eu
 cd "$(dirname "$0")/.."
-# Keep in step with the image in docker-compose.yml.
-IMAGE="${MOSQUITTO_IMAGE:-eclipse-mosquitto:2.1-alpine}"
+# Use the broker image pinned in docker-compose.yml, so there is one definition.
+IMAGE="$(docker compose config --images | head -n 1)"
+[ -n "$IMAGE" ] || { echo "could not read the image from docker-compose.yml" >&2; exit 1; }
 # Run as the calling user so the file is not left owned by root on Linux.
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/mosquitto:/work" "$IMAGE" sh -c '
   rm -f /work/passwd_file
