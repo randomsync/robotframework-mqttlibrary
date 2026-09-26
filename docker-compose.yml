@@ -1,0 +1,34 @@
+# Test brokers for the acceptance suite. Start with: docker compose up --wait
+services:
+  anonymous:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth:
+    image: eclipse-mosquitto:2
+    ports:
+      - "11883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto-auth.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd_file:/mosquitto/fixtures/passwd_file:ro
+    # Mosquitto requires the password file to be owned by its user and not
+    # world-readable, which a bind mount cannot guarantee, so copy it in.
+    command: >-
+      sh -c "install -m 0700 -o mosquitto -g mosquitto
+      /mosquitto/fixtures/passwd_file /mosquitto/config/passwd_file
+      && exec mosquitto -c /mosquitto/config/mosquitto.conf"
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-u", "authuser1", "-P", "password1",
+             "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
