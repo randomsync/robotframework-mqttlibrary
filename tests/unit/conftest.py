@@ -165,7 +165,7 @@ def log(monkeypatch):
 
 @pytest.fixture
 def lib(fake, log):
-    return Library(loop_timeout='0.2 seconds')
+    return Library(loop_timeout='0.05 seconds')
 
 
 @pytest.fixture

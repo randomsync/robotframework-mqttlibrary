@@ -252,7 +252,7 @@ def test_connect_configures_the_client(lib, fake):
         'clean_session': False,
         'reconnect_on_failure': False,
     }
-    assert client.connect_timeout == 0.2
+    assert client.connect_timeout == 0.05
     assert client.credentials == ('user', 'secret')
     assert client.connect_args == ('broker.test', 1884, 30)
     assert client.loop_starts == 1
@@ -286,7 +286,7 @@ def test_connect_times_out_without_connack(lib, fake, monkeypatch):
         self.connack = None
     monkeypatch.setattr(FakeClient, '__init__', silent_init)
     with pytest.raises(RuntimeError, match='^Connection to broker.test:1883 '
-                       'failed: no CONNACK within 0.2 seconds$'):
+                       'failed: no CONNACK within 0.05 seconds$'):
         lib.connect('broker.test')
     assert fake.instances[-1].stopped
 
@@ -384,7 +384,7 @@ def test_disconnect_without_confirmation_warns(lib, client, log):
     lib.disconnect()
     assert client.stopped
     assert log.warnings == ['The broker did not confirm the disconnect of '
-                            'broker.test:1883 within 0.2 seconds']
+                            'broker.test:1883 within 0.05 seconds']
 
 
 def test_disconnect_does_not_wait_for_a_stuck_loop(lib, client, log):
@@ -393,7 +393,7 @@ def test_disconnect_does_not_wait_for_a_stuck_loop(lib, client, log):
     lib.disconnect()
     assert time.monotonic() - start < 1
     assert log.warnings == ['The broker did not confirm the disconnect of '
-                            'broker.test:1883 within 0.2 seconds']
+                            'broker.test:1883 within 0.05 seconds']
     client.stuck = False
     client.loop_thread.join()
 
@@ -462,7 +462,7 @@ def test_publish_unknown_error_code(lib, client):
 def test_publish_without_acknowledgement_fails(lib, client):
     client.puback = False
     with pytest.raises(RuntimeError, match='^Publish to t not acknowledged '
-                       'within 0.2 seconds$'):
+                       'within 0.05 seconds$'):
         lib.publish('t', 'm', 1)
 
 
@@ -517,7 +517,7 @@ def test_subscribe_error_names_the_paho_code(lib, client):
 def test_subscribe_without_suback_fails(lib, client):
     client.suback = None
     with pytest.raises(RuntimeError, match='^Subscribe to a not acknowledged '
-                       'within 0.2 seconds$'):
+                       'within 0.05 seconds$'):
         lib.subscribe('a', 1, timeout=0)
 
 
