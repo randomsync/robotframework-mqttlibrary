@@ -45,3 +45,23 @@ docs/_build/
 output.xml
 report.html
 log.html
+
+# Virtual environments
+/venv/
+/.venv/
+/env/
+
+# Tool caches and coverage
+.pytest_cache/
+.ruff_cache/
+/htmlcov/
+
+# Robot Framework results directory
+/results/
+
+# Generated TLS certificates for the test brokers
+mosquitto/certs/
+
+# Editor settings
+.vscode/
+.idea/

@@ -1,2 +1,2 @@
-paho-mqtt~=1.1
-robotframework~=3.0
+# Test dependencies. paho-mqtt comes from setup.py, so CI tests the published range.
+robotframework~=7.0
