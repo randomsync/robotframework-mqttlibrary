@@ -27,6 +27,16 @@ Progress towards the next releases is tracked in
   lands ([#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)), releases are built and uploaded by hand, starting
   with 0.7.2 ([#42](https://github.com/randomsync/robotframework-mqttlibrary/issues/42)). Pushing a tag does not publish anything.
 
+## [0.7.2] - 2026-09-26
+
+Released from the `0.7.x` branch for suites that need paho-mqtt 1.x.
+
+### Fixed
+
+- Declare `paho-mqtt>=1.3,<2`. 0.7.x does not work with paho-mqtt 2, and
+  until then a fresh install pulled it in and failed on the first keyword
+  ([#29](https://github.com/randomsync/robotframework-mqttlibrary/issues/29), [#34](https://github.com/randomsync/robotframework-mqttlibrary/issues/34)). No library code changed.
+
 ## [0.7.1] - 2020-07-21
 
 ### Fixed
@@ -39,4 +49,5 @@ Progress towards the next releases is tracked in
 - Tests use local brokers instead of a public broker ([#22](https://github.com/randomsync/robotframework-mqttlibrary/pull/22)).
 
 [Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...HEAD
+[0.7.2]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.0...0.7.1
