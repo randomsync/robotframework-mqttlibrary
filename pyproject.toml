@@ -66,3 +66,17 @@ include = [
     "/LICENSE.txt",
     "/CHANGELOG.md",
 ]
+
+# CI runs the unit and acceptance tests under coverage against the installed
+# wheel and enforces the floor on the combined result.
+[tool.coverage.run]
+source = ["MQTTLibrary"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+source = ["src/MQTTLibrary", "*/site-packages/MQTTLibrary"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

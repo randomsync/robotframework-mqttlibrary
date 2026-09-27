@@ -1,54 +1,70 @@
-from paho.mqtt.matcher import MQTTMatcher
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
-import robot
-import time
-import re
 
 from robot.libraries.DateTime import convert_time
 from robot.api import logger
 
-# https://github.com/eclipse/paho.mqtt.python/blob/1eec03edf39128e461e6729694cf5d7c1959e5e4/src/paho/mqtt/client.py#L250
-def topic_matches_sub(sub, topic):
-    """Check whether a topic matches a subscription.
-    For example:
-    foo/bar would match the subscription foo/# or +/bar
-    non/matching would not match the subscription non/+/+
-    """
-    matcher = MQTTMatcher()
-    matcher[sub] = True
-    try:
-        next(matcher.iter_match(topic))
-        return True
-    except StopIteration:
-        return False
+from MQTTLibrary.connection import _Connection
 
 # paho 2 defines the protocol versions as an IntEnum. A plain int default keeps
 # Robot Framework converting the argument as an int, as it did with paho 1.
 MQTT_V31 = int(mqtt.MQTTv31)
 
+_PROTOCOLS = {
+    'mqttv31': mqtt.MQTTv31,
+    'mqttv311': mqtt.MQTTv311,
+    'mqttv5': mqtt.MQTTv5,
+}
+
+DEFAULT_ALIAS = 'default'
+
+
+def _protocol(value):
+    """Accept a protocol version as a name (MQTTv311) or a number (4)."""
+    name = str(value).strip().lower()
+    if name in _PROTOCOLS:
+        return _PROTOCOLS[name]
+    try:
+        return mqtt.MQTTProtocolVersion(int(name))
+    except ValueError:
+        raise RuntimeError('Unknown MQTT protocol version: %s. Use MQTTv31, '
+                           'MQTTv311 or MQTTv5.' % value) from None
+
 
 class MQTTKeywords(object):
 
-    # Timeout used for all blocking loop* functions. This serves as a
-    # safeguard to not block forever, in case of unexpected/unhandled errors
+    # Timeout used for all blocking operations: connect, acknowledgements and
+    # disconnect. This serves as a safeguard to not block forever, in case of
+    # unexpected/unhandled errors
     LOOP_TIMEOUT = '5 seconds'
 
     def __init__(self, loop_timeout=LOOP_TIMEOUT):
         self._loop_timeout = convert_time(loop_timeout)
-        self._background_mqttc = None
-        self._messages = {}
+        self._connections = {}
+        self._alias = DEFAULT_ALIAS
         self._username = None
         self._password = None
-        #self._mqttc = mqtt.Client()
+
+    def _connection(self, alias):
+        alias = alias or self._alias
+        try:
+            return self._connections[alias]
+        except KeyError:
+            raise RuntimeError("No connection with alias '%s'. Use Connect "
+                               "first." % alias) from None
 
     def set_username_and_password(self, username, password=None):
         self._username = username
         self._password = password
 
-    def connect(self, broker, port=1883, client_id="", clean_session=True):
+    def connect(self, broker, port=1883, client_id="", clean_session=True,
+                keepalive=60, alias=None):
         """ Connect to an MQTT broker. This is a pre-requisite step for publish
         and subscribe keywords.
+
+        The connection is serviced by a background network loop until
+        `Disconnect`, so keepalive pings and acknowledgements are handled
+        between keywords.
 
         `broker` MQTT broker host
 
@@ -57,6 +73,19 @@ class MQTTKeywords(object):
         `client_id` if not specified, a random id is generated
 
         `clean_session` specifies the clean session flag for the connection
+
+        `keepalive` seconds between keepalive pings (default 60)
+
+        `alias` names the connection so that several can be open at once.
+        Other keywords take the same `alias` argument; without one they use
+        the connection opened or switched to last. Default `default`.
+        Connecting again on an alias that is still connected disconnects the
+        old connection first, with a warning.
+
+        Fails with the broker's reason, for example
+        `Connection to 127.0.0.1:11883 failed: Not authorized`, if the broker
+        refuses the connection or does not answer within the library's
+        timeout.
 
         Examples:
 
@@ -69,40 +98,52 @@ class MQTTKeywords(object):
         Connect to a broker with clean session flag set to false
         | Connect | 127.0.0.1 | clean_session=${false} |
 
+        Open a subscriber and a publisher connection
+        | Connect | 127.0.0.1 | alias=sub |
+        | Connect | 127.0.0.1 | alias=pub |
+
         """
+        alias = alias or DEFAULT_ALIAS
+        old = self._connections.pop(alias, None)
+        if old is not None:
+            logger.warn("Connection '%s' to %s was still open. Disconnecting "
+                        "it before connecting again." % (alias, old.address))
+            try:
+                old.close()
+            except RuntimeError as exc:
+                logger.warn(str(exc))
+
         logger.info('Connecting to %s at port %s' % (broker, port))
-        self._connected = False
-        self._unexpected_disconnect = False
-        self._mqttc = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=client_id,
-            clean_session=clean_session,
-        )
+        conn = _Connection(alias, broker, int(port), client_id, clean_session,
+                           int(keepalive), self._loop_timeout,
+                           self._username, self._password)
+        conn.open()
+        self._connections[alias] = conn
+        self._alias = alias
+        logger.debug('client_id: %s' % conn.client._client_id)
+        return conn.client
 
-        # set callbacks
-        self._mqttc.on_connect = self._on_connect
-        self._mqttc.on_disconnect = self._on_disconnect
+    def switch_connection(self, alias):
+        """ Make the connection named `alias` the one that keywords use when
+        they are called without an `alias`. Returns the previous alias.
 
-        if self._username:
-            self._mqttc.username_pw_set(self._username, self._password)
+        Example:
+        | Connect | 127.0.0.1 | alias=sub |
+        | Connect | 127.0.0.1 | alias=pub |
+        | Switch Connection | sub |
 
-        self._mqttc.connect(broker, int(port))
+        """
+        if alias not in self._connections:
+            raise RuntimeError("No connection with alias '%s'." % alias)
+        previous, self._alias = self._alias, alias
+        return previous
 
-        timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if self._connected or self._unexpected_disconnect:
-                break;
-            self._mqttc.loop()
-
-        if self._unexpected_disconnect:
-            raise RuntimeError("The client disconnected unexpectedly")
-        logger.debug('client_id: %s' % self._mqttc._client_id)
-        return self._mqttc
-
-    def publish(self, topic, message=None, qos=0, retain=False):
+    def publish(self, topic, message=None, qos=0, retain=False, alias=None):
         """ Publish a message to a topic with specified qos and retained flag.
         It is required that a connection has been established using `Connect`
-        keyword before using this keyword.
+        keyword before using this keyword. Waits until the message is sent
+        (qos 0) or acknowledged (qos 1 and 2), and fails if it is not within
+        the library's timeout.
 
         `topic` topic to which the message will be published
 
@@ -112,6 +153,8 @@ class MQTTKeywords(object):
 
         `retain` retained flag
 
+        `alias` the connection to use (see `Connect`)
+
         Examples:
 
         | Publish | test/test | test message | 1 | ${false} |
@@ -119,33 +162,26 @@ class MQTTKeywords(object):
         """
         logger.info('Publish topic: %s, message: %s, qos: %s, retain: %s'
             % (topic, message, qos, retain))
-        self._mid = -1
-        self._mqttc.on_publish = self._on_publish
-        result, mid = self._mqttc.publish(topic, message, int(qos), retain)
-        if result != 0:
-            raise RuntimeError('Error publishing: %s' % result)
+        self._connection(alias).publish(topic, message, int(qos), retain)
 
-        timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if mid == self._mid:
-                break;
-            self._mqttc.loop()
-
-        if mid != self._mid:
-            logger.warn('mid wasn\'t matched: %s' % mid)
-
-    def subscribe(self, topic, qos, timeout=1, limit=1):
+    def subscribe(self, topic, qos, timeout=1, limit=1, alias=None):
         """ Subscribe to a topic and return a list of message payloads received
-            within the specified time.
+            within the specified time. Waits for the broker to acknowledge the
+            subscription, and fails if it refuses it.
 
         `topic` topic to subscribe to
 
         `qos` quality of service for the subscription
 
-        `timeout` duration of subscription. Specify 0 to enable background looping (async)
+        `timeout` duration of subscription. Specify 0 to return immediately
+            (async); read the messages later with `Listen`. Otherwise this is
+            the same as `Listen` with the same `timeout` and `limit`.
 
         `limit` the max number of payloads that will be returned. Specify 0
-            for no limit
+            for no limit. The oldest messages are returned first; the rest
+            stay queued for the next `Listen` on the same connection.
+
+        `alias` the connection to use (see `Connect`)
 
         Examples:
 
@@ -158,45 +194,31 @@ class MQTTKeywords(object):
 
         """
         seconds = convert_time(timeout)
-        self._messages[topic] = []
-        limit = int(limit)
-        self._subscribed = False
-
+        conn = self._connection(alias)
         logger.info('Subscribing to topic: %s' % topic)
-        self._mqttc.on_subscribe = self._on_subscribe
-        self._mqttc.subscribe(str(topic), int(qos))
-
-        self._mqttc.on_message = self._on_message_list
-
+        conn.subscribe(str(topic), int(qos))
         if seconds == 0:
-            logger.info('Starting background loop')
-            self._background_mqttc = self._mqttc
-            self._background_mqttc.loop_start()
-            return self._messages[topic]
+            return []
+        return conn.listen(str(topic), seconds, int(limit))
 
-        timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages[topic]) < limit:
-                self._mqttc.loop()
-            else:
-                # workaround for client to ack the publish. Otherwise,
-                # it seems that if client disconnects quickly, broker
-                # will not get the ack and publish the message again on
-                # next connect.
-                time.sleep(1)
-                break
-        return self._messages[topic]
-
-    def listen(self, topic, timeout=1, limit=1):
+    def listen(self, topic, timeout=1, limit=1, alias=None):
         """ Listen to a topic and return a list of message payloads received
-            within the specified time. Requires an async Subscribe to have been called previously.
+            within the specified time. Requires a Subscribe to have been called previously.
+
+        Messages are queued from the moment of `Subscribe`, so none are lost
+        between two calls. Fails if the connection is lost and no message is
+        queued.
 
         `topic` topic to listen to
 
-        `timeout` duration to listen
+        `timeout` duration to listen. Returns as soon as `limit` messages
+            are available.
 
         `limit` the max number of payloads that will be returned. Specify 0
-            for no limit
+            for no limit. The oldest messages are returned first; the rest
+            stay queued for the next `Listen`.
+
+        `alias` the connection to use (see `Connect`)
 
         Examples:
 
@@ -208,57 +230,23 @@ class MQTTKeywords(object):
         | Length should be | ${messages} | 1 |
 
         """
-        timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if self._subscribed:
-                break;
-            time.sleep(1)
-        if not self._subscribed:
-            logger.warn('Cannot listen when not subscribed to a topic')
-            return []
-
-        if topic not in self._messages:
+        seconds = convert_time(timeout)
+        logger.info('Listening on topic: %s' % topic)
+        messages = self._connection(alias).listen(str(topic), seconds,
+                                                  int(limit))
+        if messages is None:
             logger.warn('Cannot listen when not subscribed to topic: %s' % topic)
             return []
+        return messages
 
-        # If enough messages have already been gathered, return them
-        if limit != 0 and len(self._messages[topic]) >= limit:
-            messages = self._messages[topic][:]  # Copy the list's contents
-            self._messages[topic] = []
-            return messages[-limit:]
-
-        seconds = convert_time(timeout)
-        limit = int(limit)
-
-        logger.info('Listening on topic: %s' % topic)
-        timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if limit == 0 or len(self._messages[topic]) < limit:
-                # If the loop is running in the background
-                # merely sleep here for a second or so and continue
-                # otherwise, do the loop ourselves
-                if self._background_mqttc:
-                    time.sleep(1)
-                else:
-                    self._mqttc.loop()
-            else:
-                # workaround for client to ack the publish. Otherwise,
-                # it seems that if client disconnects quickly, broker
-                # will not get the ack and publish the message again on
-                # next connect.
-                time.sleep(1)
-                break
-
-        messages = self._messages[topic][:]  # Copy the list's contents
-        self._messages[topic] = []
-        return messages[-limit:] if limit != 0 else messages
-
-    def subscribe_and_validate(self, topic, qos, payload, timeout=1):
+    def subscribe_and_validate(self, topic, qos, payload, timeout=1,
+                               alias=None):
         """ Subscribe to a topic and validate that the specified payload is
         received within timeout. It is required that a connection has been
         established using `Connect` keyword. The payload can be specified as
         a python regular expression. If the specified payload is not received
-        within timeout, an AssertionError is thrown.
+        within timeout, an AssertionError is thrown. Messages that do not
+        match are consumed.
 
         `topic` topic to subscribe to
 
@@ -268,89 +256,80 @@ class MQTTKeywords(object):
 
         `timeout` time to wait for the payload to arrive
 
+        `alias` the connection to use (see `Connect`)
+
         Examples:
 
         | Subscribe And Validate | test/test | 1 | test message |
 
         """
         seconds = convert_time(timeout)
-        self._verified = False
-
+        conn = self._connection(alias)
         logger.info('Subscribing to topic: %s' % topic)
-        self._payload = str(payload)
-        self._mqttc.on_message = self._on_message
-        self._mqttc.subscribe(str(topic), int(qos))
-
-        timer_start = time.time()
-        while time.time() < timer_start + seconds:
-            if self._verified:
-                break
-            self._mqttc.loop()
-
-        if not self._verified:
+        conn.subscribe(str(topic), int(qos))
+        if not conn.validate(str(topic), str(payload), seconds):
             raise AssertionError("The expected payload didn't arrive in the topic")
 
-    def unsubscribe(self, topic):
-        """ Unsubscribe the client from the specified topic.
+    def unsubscribe(self, topic, alias=None):
+        """ Unsubscribe the client from the specified topic. Messages still
+        queued for the topic are dropped. Other subscriptions on the
+        connection are not affected.
 
         `topic` topic to unsubscribe from
+
+        `alias` the connection to use (see `Connect`)
 
         Example:
         | Unsubscribe | test/mqtt_test |
 
         """
-        try:
-            tmp = self._mqttc
-        except AttributeError:
-            logger.info('No MQTT Client instance found so nothing to unsubscribe from.')
+        alias = alias or self._alias
+        conn = self._connections.get(alias)
+        if conn is None:
+            logger.info('No MQTT connection found so nothing to unsubscribe from.')
             return
 
-        if self._background_mqttc:
-            logger.info('Closing background loop')
-            self._background_mqttc.loop_stop()
-            self._background_mqttc = None
-
-        if topic in self._messages:
-            del self._messages[topic]
-
         logger.info('Unsubscribing from topic: %s' % topic)
-        self._unsubscribed = False
-        self._mqttc.on_unsubscribe = self._on_unsubscribe
-        self._mqttc.unsubscribe(str(topic))
-
-        timer_start = time.time()
-        while (not self._unsubscribed and
-                time.time() < timer_start + self._loop_timeout):
-            self._mqttc.loop()
-
-        if not self._unsubscribed:
+        if not conn.unsubscribe(str(topic)):
             logger.warn('Client didn\'t receive an unsubscribe callback')
 
-    def disconnect(self):
-        """ Disconnect from MQTT Broker.
+    def disconnect(self, alias=None):
+        """ Disconnect from MQTT Broker and stop the connection's network
+        loop. Does nothing if there is no such connection.
+
+        `alias` the connection to disconnect (see `Connect`)
 
         Example:
         | Disconnect |
 
         """
-        try:
-            tmp = self._mqttc
-        except AttributeError:
-            logger.info('No MQTT Client instance found so nothing to disconnect from.')
+        alias = alias or self._alias
+        conn = self._connections.pop(alias, None)
+        if conn is None:
+            logger.info('No MQTT connection found so nothing to disconnect from.')
             return
+        if not conn.close():
+            logger.warn('The broker did not confirm the disconnect of %s '
+                        'within %s seconds' % (conn.address, conn.timeout))
 
-        self._disconnected = False
-        self._unexpected_disconnect = False
-        self._mqttc.on_disconnect = self._on_disconnect
-        self._mqttc.disconnect()
+    def disconnect_all(self):
+        """ Disconnect every open connection. Tries all of them, then fails
+        if any failed.
 
-        timer_start = time.time()
-        while time.time() < timer_start + self._loop_timeout:
-            if self._disconnected or self._unexpected_disconnect:
-                break;
-            self._mqttc.loop()
-        if self._unexpected_disconnect:
-            raise RuntimeError("The client disconnected unexpectedly")
+        Example:
+        | [Teardown] | Disconnect All |
+
+        """
+        errors = []
+        for alias in list(self._connections):
+            try:
+                self.disconnect(alias)
+            except Exception as exc:
+                errors.append('%s: %s' % (alias, exc))
+        self._alias = DEFAULT_ALIAS
+        if errors:
+            raise RuntimeError('Disconnect All failed for %s'
+                               % '; '.join(errors))
 
     def publish_single(self, topic, payload=None, qos=0, retain=False,
             hostname="localhost", port=1883, client_id="", keepalive=60,
@@ -388,7 +367,8 @@ class MQTTKeywords(object):
                 'keyfile':"<keyfile>", 'tls_version':"<tls_version>",
                 'ciphers':"<ciphers">}
 
-        `protocol` MQTT protocol version (MQTTv31 or MQTTv311)
+        `protocol` MQTT protocol version, as a name (MQTTv31, MQTTv311 or
+            MQTTv5) or a number (3, 4 or 5). Default MQTTv31.
 
         Example:
 
@@ -399,7 +379,8 @@ class MQTTKeywords(object):
         logger.info('Publishing to: %s:%s, topic: %s, payload: %s, qos: %s' %
                     (hostname, port, topic, payload, qos))
         publish.single(topic, payload, qos, retain, hostname, port,
-                        client_id, keepalive, will, auth, tls, protocol)
+                        client_id, keepalive, will, auth, tls,
+                        _protocol(protocol))
 
     def publish_multiple(self, msgs, hostname="localhost", port=1883,
             client_id="", keepalive=60, will=None, auth=None,
@@ -433,39 +414,4 @@ class MQTTKeywords(object):
         logger.info('Publishing to: %s:%s, msgs: %s' %
                     (hostname, port, msgs))
         publish.multiple(msgs, hostname, port, client_id, keepalive,
-                        will, auth, tls, protocol)
-
-    def _on_message(self, client, userdata, message):
-        payload = message.payload.decode('utf-8')
-        logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (payload, message.topic, str(message.qos)))
-        self._verified = re.match(self._payload, payload)
-
-    def _on_message_list(self, client, userdata, message):
-        payload = message.payload.decode('utf-8')
-        logger.debug('Received message: %s on topic: %s with QoS: %s'
-            % (payload, message.topic, str(message.qos)))
-        if message.topic not in self._messages:
-            self._messages[message.topic] = []
-        for sub in self._messages:
-            if topic_matches_sub(sub, message.topic):
-                self._messages[sub].append(payload)
-
-    def _on_connect(self, client, userdata, flags, reason_code, properties):
-        self._connected = not reason_code.is_failure
-
-    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
-        if not reason_code.is_failure:
-            self._disconnected = True
-            self._unexpected_disconnect = False
-        else:
-            self._unexpected_disconnect = True
-
-    def _on_subscribe(self, client, userdata, mid, reason_codes, properties):
-        self._subscribed = True
-
-    def _on_unsubscribe(self, client, userdata, mid, reason_codes, properties):
-        self._unsubscribed = True
-
-    def _on_publish(self, client, userdata, mid, reason_code, properties):
-        self._mid = mid
+                        will, auth, tls, _protocol(protocol))

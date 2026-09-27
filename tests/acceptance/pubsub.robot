@@ -99,15 +99,20 @@
 | | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message1 | qos=1
 | | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2 | qos=1
 | | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message3 | qos=1
-| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=1
+| | Connect     | ${broker.uri} | ${broker.port}    | ${client}     | ${false}
+| | @{messages} | Subscribe     | ${topic}          | qos=1         | timeout=1s    | limit=1
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
 | | Should Be Equal As Strings  | ${messages}[0]    | test message1
-| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=2
+| | @{messages} | Listen        | ${topic}          | limit=2
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 2
 | | Should Be Equal As Strings  | ${messages}[0]    | test message2
 | | Should Be Equal As Strings  | ${messages}[1]    | test message3
+| | Disconnect
+| | @{messages} | Subscribe and Get Messages    | client.id=${client}   | topic=${topic} | limit=0
+| | Length Should Be            | ${messages}       | 0
+| | [Teardown]  | Disconnect All
 
 | Unsubscribe and validate no messages are received
 | | ${time}     | Get Time      | epoch
@@ -133,6 +138,7 @@
 | | ... | topic=${topic}        | message=${message}
 | | Connect     | 127.0.0.1     | 11883
 | | Publish     | ${topic}      | test message with username and password   | qos=1
+| | Disconnect
 | | Subscribe to MQTT Broker and Validate
 | | ...         | broker.uri=127.0.0.1  | port=11883    | client.id=${client}   | topic=${topic}        | message=test message with username and password
 | | [Teardown]  | Disconnect
@@ -143,7 +149,7 @@
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test
 | | Set username and password   | authuser1     | invalidpwd
-| | Run Keyword and expect error    | The client disconnected unexpectedly
+| | Run Keyword and expect error    | *Not authorized*
 | | ...         | Connect     | 127.0.0.1     | 11883          | ${client}
 | | [Teardown]  | Disconnect
 
@@ -152,7 +158,7 @@
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
 | | Subscribe Async | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker   | topic=${topic}    | message=test message      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message      | qos=1
 | | @{messages} | Listen and Get Messages    | topic=${topic}
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 1
@@ -164,9 +170,9 @@
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | test/mqtt_test_sub
 | | Subscribe Async | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker   | topic=${topic}    | message=test message1      | qos=1
-| | Publish to MQTT Broker   | topic=${topic}    | message=test message2      | qos=1
-| | Publish to MQTT Broker   | topic=${topic}    | message=test message3      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message1      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message2      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message3      | qos=1
 | | @{messages} | Listen and Get Messages    | topic=${topic} | limit=0
 | | LOG         | ${messages}
 | | Length Should Be            | ${messages}       | 3
@@ -181,13 +187,13 @@
 | | ${client2}  | Catenate      | SEPARATOR=.   | robot.mqtt | ${time+1}
 | | ${topic1}   | Set Variable  | test/mqtt_test_sub1
 | | ${topic2}   | Set Variable  | test/mqtt_test_sub2
-| | Subscribe Async | client.id=${client1}   | topic=${topic1}
-| | Subscribe Async | client.id=${client2}   | topic=${topic2}
-| | Publish to MQTT Broker   | topic=${topic2}    | message=test message1      | qos=1
-| | Publish to MQTT Broker   | topic=${topic1}    | message=test message2      | qos=1
-| | Publish to MQTT Broker   | topic=${topic2}    | message=test message3      | qos=1
-| | @{messages1} | Listen and Get Messages    | topic=${topic1} | limit=0
-| | @{messages2} | Listen and Get Messages    | topic=${topic2} | limit=0
+| | Subscribe Async | client.id=${client1}   | topic=${topic1}   | alias=sub1
+| | Subscribe Async | client.id=${client2}   | topic=${topic2}   | alias=sub2
+| | Publish to MQTT Broker and Disconnect   | topic=${topic2}    | message=test message1      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic1}    | message=test message2      | qos=1
+| | Publish to MQTT Broker and Disconnect   | topic=${topic2}    | message=test message3      | qos=1
+| | @{messages1} | Listen and Get Messages    | topic=${topic1} | limit=0   | alias=sub1
+| | @{messages2} | Listen and Get Messages    | topic=${topic2} | limit=0   | alias=sub2
 | | LOG         | ${messages1}
 | | LOG         | ${messages2}
 | | Length Should Be            | ${messages1}       | 1
@@ -195,7 +201,9 @@
 | | Length Should Be            | ${messages2}       | 2
 | | Should Be Equal As Strings  | ${messages2}[0]    | test message1
 | | Should Be Equal As Strings  | ${messages2}[1]    | test message3
-| | [Teardown]  | Unsubscribe Multiple and Disconnect  | ${topic1}    | ${topic2}
+| | [Teardown]  | Run Keywords  | Unsubscribe   | ${topic1}     | alias=sub1
+| | ...         | AND           | Unsubscribe   | ${topic2}     | alias=sub2
+| | ...         | AND           | Disconnect All
 
 | Listen immediately after Subscribe and validate message is received
 | | ${time}     | Get Time      | epoch
@@ -204,6 +212,6 @@
 | | Subscribe and Get Messages  | client.id=${client}   | topic=${topic}
 | | Publish to MQTT Broker and Disconnect   | topic=${topic}    | message=test message      | qos=1
 | | Subscribe Async             | client.id=${client}   | topic=${topic}
-| | @{messages}= | Listen       | topic=${topic} | limit=10 | timeout=5
+| | @{messages}= | Listen       | topic=${topic} | limit=10 | timeout=5 | alias=sub
 | | Should Be Equal As Strings  | ${messages}[0]    | test message
 | | [Teardown]  | Unsubscribe and Disconnect | ${topic}

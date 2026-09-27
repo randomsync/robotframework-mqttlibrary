@@ -21,17 +21,23 @@
 | | ...         | ${client.id}=${client.id}     | ${clean_session}=${true}
 | | ...         | ${topic}=${topic}             | ${message}=${EMPTY}
 | | ...         | ${qos}=0                      | ${retention}=${false}
+| | ...         | ${alias}=pub
 | | Connect     | ${broker.uri} | ${port}       | ${client.id}    | ${clean_session}
+| | ...         | alias=${alias}
 | | Publish     | ${topic}      | ${message}    | ${qos}    | ${retention}
+| | ...         | alias=${alias}
 
 | Publish to MQTT Broker and Disconnect
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
 | | ...         | ${client.id}=${client.id}     | ${clean_session}=${true}
 | | ...         | ${topic}=${topic}             | ${message}=${EMPTY}
 | | ...         | ${qos}=0                      | ${retention}=${false}
+| | ...         | ${alias}=pub
 | | Connect     | ${broker.uri} | ${port}       | ${client.id}    | ${clean_session}
+| | ...         | alias=${alias}
 | | Publish     | ${topic}      | ${message}    | ${qos}    | ${retention}
-| | [Teardown]  | Disconnect
+| | ...         | alias=${alias}
+| | [Teardown]  | Disconnect    | ${alias}
 
 | Subscribe to MQTT Broker and Validate
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
@@ -57,21 +63,15 @@
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
 | | ...         | ${client.id}=${client.id}     | ${topic}=${topic}
 | | ...         | ${qos}=1                      | ${timeout}=0s
-| | ...         | ${limit}=1
+| | ...         | ${limit}=1                    | ${alias}=sub
 | | Connect     | ${broker.uri} | ${port}       | ${client.id}  | ${false}
-| | Subscribe   | ${topic} | ${qos} | ${timeout}    | ${limit}
+| | ...         | alias=${alias}
+| | Subscribe   | ${topic} | ${qos} | ${timeout}    | ${limit}  | alias=${alias}
 
 | Unsubscribe and Disconnect
-| | [Arguments] | ${topic}=${topic}
-| | Unsubscribe | ${topic}
-| | [Teardown]  | Disconnect
-
-| Unsubscribe Multiple and Disconnect
-| | [Arguments] | @{topics}
-| | FOR    | ${topic}    | IN    | @{topics}
-| | | Unsubscribe    | ${topic}
-| | END
-| | [Teardown]  | Disconnect
+| | [Arguments] | ${topic}=${topic}     | ${alias}=sub
+| | Unsubscribe | ${topic}              | alias=${alias}
+| | [Teardown]  | Disconnect All
 
 | Subscribe and Unsubscribe
 | | [Arguments] | ${broker.uri}=${broker.uri}   | ${port}=${broker.port}
@@ -86,6 +86,6 @@
 
 | Listen and Get Messages
 | | [Arguments] | ${topic}=${topic}   | ${timeout}=1s
-| | ...         | ${limit}=1
-| | @{messages} | Listen     | ${topic} | ${timeout}    | ${limit}
+| | ...         | ${limit}=1          | ${alias}=sub
+| | @{messages} | Listen     | ${topic} | ${timeout}    | ${limit}  | alias=${alias}
 | | [Return]    | @{messages}

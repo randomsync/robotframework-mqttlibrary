@@ -93,18 +93,29 @@ jobs:
         env:
           PAHO: ${{ matrix.paho }}
         run: |
-          reqs=(dist/*.whl "robotframework~=7.0")
+          reqs=(dist/*.whl "robotframework~=7.0" coverage pytest)
           if [ "$PAHO" != latest ]; then reqs+=("paho-mqtt==$PAHO"); fi
           python -m pip install "${reqs[@]}"
           python -m pip check
           python -m pip freeze > results/pip-freeze.txt
           python -c "import MQTTLibrary; assert 'site-packages' in MQTTLibrary.__file__, MQTTLibrary.__file__"
 
+      # Before the brokers start, which shows the unit tests need none.
+      - name: Run unit tests
+        run: python -m coverage run -m pytest tests/unit
+
       - name: Start test brokers
         run: docker compose up --wait --wait-timeout 60
 
       - name: Run acceptance tests
-        run: robot --outputdir results tests
+        run: python -m coverage run -m robot --outputdir results tests/acceptance
+
+      # The floor (fail_under) is set in pyproject.toml.
+      - name: Check coverage
+        run: |
+          set -o pipefail
+          python -m coverage combine
+          python -m coverage report | tee results/coverage.txt
 
       - name: Save broker logs
         if: always()
