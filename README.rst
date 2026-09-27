@@ -55,10 +55,24 @@ Connect to the broker, subscribe and validate that a message is received:
         Subscribe and Validate  topic=test/mqtt_test    qos=1   payload=test
         [Teardown]              Disconnect
 
+Use named connections to subscribe and publish in one test. Messages are queued from the moment of ``Subscribe``, and ``Listen`` returns the oldest first:
+
+.. code-block:: robotframework
+
+    *** Test Cases ***
+    Publish and Listen
+        Connect         127.0.0.1    alias=sub
+        Subscribe       test/mqtt_test    qos=1    timeout=0    alias=sub
+        Connect         127.0.0.1    alias=pub
+        Publish         test/mqtt_test    hello    qos=1    alias=pub
+        @{messages}=    Listen    test/mqtt_test    timeout=5s    alias=sub
+        Should Be Equal    ${messages}[0]    hello
+        [Teardown]      Disconnect All
+
 
 Keyword documentation is available at: http://randomsync.github.io/robotframework-mqttlibrary.
 
-Also look at ``tests`` folder for examples.
+Also look at the ``tests/acceptance`` folder for examples.
 
 For general information about using test libraries with Robot Framework, see
 `Robot Framework User Guide`__.
@@ -70,11 +84,18 @@ Contributing
 
 The keywords in this library are based on some of the methods available in eclipse paho client library. If you'd like to add keywords, see instructions_ on creating/updating libraries for Robot Framework.
 
-The tests are in ``tests`` folder and make use of Robot Framework itself. They need two local MQTT brokers: one without authentication, used by most tests, and one that requires a username and password. Both are defined in ``docker-compose.yml``. They need Docker Engine 25 or later. Start them, run the tests, and stop them when you are done::
+There are two layers of tests. The unit tests in ``tests/unit`` use pytest and a fake paho client, so they need no broker::
+
+    pip install -e ".[dev]"
+    pytest tests/unit
+
+The acceptance tests in ``tests/acceptance`` make use of Robot Framework itself. They need two local MQTT brokers: one without authentication, used by most tests, and one that requires a username and password. Both are defined in ``docker-compose.yml``. They need Docker Engine 25 or later. Start them, run the tests, and stop them when you are done::
 
     docker compose up --wait
-    robot -P src tests
+    robot tests/acceptance
     docker compose down
+
+CI runs both layers under coverage and requires at least 90% combined coverage (see ``[tool.coverage]`` in ``pyproject.toml``).
 
 The test credentials live in ``mosquitto/passwd_file``. To regenerate it, run ``scripts/gen-passwd.sh``.
 

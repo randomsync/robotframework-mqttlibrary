@@ -11,6 +11,20 @@ Progress towards the next releases is tracked in
 
 ### Added
 
+- Every connection now runs paho's background network loop from `Connect`
+  to `Disconnect`, so keepalive pings, acknowledgements and incoming messages
+  are handled between keywords. Connections no longer drop while a test is
+  idle ([#25](https://github.com/randomsync/robotframework-mqttlibrary/issues/25)), messages published right after `Subscribe` arrive
+  ([#33](https://github.com/randomsync/robotframework-mqttlibrary/issues/33)), and no message is lost or left unacknowledged ([#28](https://github.com/randomsync/robotframework-mqttlibrary/issues/28))
+  ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- Named connections: an `alias=` argument on `Connect` and on every keyword
+  that uses a connection, and the new keywords `Switch Connection` and
+  `Disconnect All`. Without an alias, keywords use the connection opened or
+  switched to last ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- A `keepalive=` argument on `Connect` ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- A pytest unit layer with a fake paho client, and regression tests for
+  [#23](https://github.com/randomsync/robotframework-mqttlibrary/issues/23), [#24](https://github.com/randomsync/robotframework-mqttlibrary/issues/24), [#25](https://github.com/randomsync/robotframework-mqttlibrary/issues/25), [#28](https://github.com/randomsync/robotframework-mqttlibrary/issues/28) and [#33](https://github.com/randomsync/robotframework-mqttlibrary/issues/33). CI runs both layers under
+  coverage and requires at least 90% ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
 - A CI job builds the sdist and wheel, checks their contents and metadata,
   and installs the wheel in a clean environment ([#43](https://github.com/randomsync/robotframework-mqttlibrary/issues/43)).
 - Tests run on GitHub Actions for every push to master and every pull
@@ -18,10 +32,43 @@ Progress towards the next releases is tracked in
 
 ### Changed
 
+- **Breaking:** messages are queued per subscription filter from the moment
+  of `Connect`, including persistent-session messages that arrive before
+  `Subscribe`. `Subscribe` and `Listen` return the oldest messages first and
+  keep the rest for the next `Listen` on the same connection. 0.7 returned
+  the newest ones and discarded the others ([#23](https://github.com/randomsync/robotframework-mqttlibrary/issues/23)). Because every
+  delivered message is now read and acknowledged, `limit` no longer leaves
+  messages on the broker for a later session. Subscribing again to a filter
+  keeps its queue. `Subscribe` with `timeout=0` returns an empty list
+  ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- **Breaking:** connecting again on an alias that is still connected
+  disconnects the old connection with a warning. 0.7 left the old connection
+  running in the background. Tests that relied on several such connections
+  should name them with `alias=` ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- **Breaking:** errors carry the broker's reason. A refused `Connect` fails
+  with, for example, `Connection to 127.0.0.1:11883 failed: Not authorized`
+  instead of `The client disconnected unexpectedly`. An unreachable or
+  malformed host fails within the library's timeout and names the host
+  ([#24](https://github.com/randomsync/robotframework-mqttlibrary/issues/24)). `Disconnect` on a connection the broker dropped fails with
+  `The client disconnected unexpectedly: <reason>` ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- **Breaking:** `Publish` waits for its own acknowledgement and fails with
+  the paho error name, for example `Publish to test failed:
+  MQTT_ERR_NO_CONN`, or when the message is not acknowledged within the
+  library's timeout. 0.7 only logged a warning. `Subscribe` waits for its
+  SUBACK in both modes and fails if the broker refuses the subscription.
+  `Unsubscribe` removes only its own filter and no longer stops the network
+  loop ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- `Subscribe And Validate` reads from the same queues as `Listen`, so it can
+  be mixed with `Subscribe` on one connection. It consumes the messages that
+  do not match. Its error text is unchanged ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- `Publish Single` and `Publish Multiple` accept `protocol` as a name
+  (`MQTTv31`, `MQTTv311`, `MQTTv5`, any case) or a number, and fail on an
+  unknown version ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+- The Robot Framework suites move to `tests/acceptance` ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
 - Requires paho-mqtt 2.1 or later below 3, and uses paho's version 2
   callback API. paho-mqtt 1.x is no longer supported; stay on 0.7.x if you
   need it. paho-mqtt 2.0.0 is excluded because its `Client.protocol` property
-  recurses forever. Keyword names and arguments are unchanged, and
+  recurses forever. Existing keyword names and arguments are unchanged, and
   `Publish Single` and `Publish Multiple` still default to MQTT v3.1. CI runs
   the tests on paho-mqtt 2.1.0 and on the latest 2.x ([#34](https://github.com/randomsync/robotframework-mqttlibrary/issues/34),
   [#44](https://github.com/randomsync/robotframework-mqttlibrary/issues/44)).

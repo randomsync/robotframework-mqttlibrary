@@ -10,8 +10,8 @@
 | | ${topic}    | Set Variable  | Company/+/Data
 | | ${message}  | Set Variable  | subscription test message
 | | Subscribe Async             | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker      | topic=Company/test/Data    | message=${message}      | qos=1
-| | @{messages}= | Listen       | topic=${topic} | limit=1 | timeout=1
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/Data    | message=${message}      | qos=1
+| | @{messages}= | Listen       | topic=${topic} | alias=sub | limit=1 | timeout=1
 | | Should Be Equal As Strings  | ${messages}[0]    | ${message}
 | | [Teardown]  | Unsubscribe and Disconnect | ${topic}
 
@@ -22,8 +22,8 @@
 | | ${topic}    | Set Variable  | Company/test/Data/#
 | | ${message}  | Set Variable  | subscription test message
 | | Subscribe Async             | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker      | topic=Company/test/Data/123/abc    | message=${message}      | qos=1
-| | @{messages}= | Listen       | topic=${topic} | limit=1 | timeout=1
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/Data/123/abc    | message=${message}      | qos=1
+| | @{messages}= | Listen       | topic=${topic} | alias=sub | limit=1 | timeout=1
 | | Should Be Equal As Strings  | ${messages}[0]    | ${message}
 | | [Teardown]  | Unsubscribe and Disconnect | ${topic}
 
@@ -34,9 +34,9 @@
 | | ${topic}    | Set Variable  | Company/+/Data/#
 | | ${message}  | Set Variable  | subscription test message
 | | Subscribe Async             | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker      | topic=Company/test/test/123/abc    | message=messagetest
-| | Publish to MQTT Broker      | topic=Company/test/Data/123/abc    | message=messageData
-| | @{messages}= | Listen       | topic=${topic} | limit=1 | timeout=1
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/test/123/abc    | message=messagetest
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/Data/123/abc    | message=messageData
+| | @{messages}= | Listen       | topic=${topic} | alias=sub | limit=1 | timeout=1
 | | Length should be            | ${messages}       | 1
 | | Should Be Equal As Strings  | ${messages}[0]    | messageData
 | | Should not contain          | ${messages}       | messagetest
@@ -48,9 +48,9 @@
 | | ${client}   | Catenate      | SEPARATOR=.   | robot.mqtt | ${time}
 | | ${topic}    | Set Variable  | Company/+/Data/+/test
 | | Subscribe Async             | client.id=${client}   | topic=${topic}
-| | Publish to MQTT Broker      | topic=Company/test/Data/123/abc     | message=messageabc
-| | Publish to MQTT Broker      | topic=Company/test/Data/123/test    | message=messagetest
-| | @{messages}= | Listen       | topic=${topic} | limit=10 | timeout=5
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/Data/123/abc     | message=messageabc
+| | Publish to MQTT Broker and Disconnect   | topic=Company/test/Data/123/test    | message=messagetest
+| | @{messages}= | Listen       | topic=${topic} | alias=sub | limit=10 | timeout=5
 | | Length should be            | ${messages}       | 1
 | | Should Be Equal As Strings  | ${messages}[0]    | messagetest
 | | Should not contain          | ${messages}       | messageabc
