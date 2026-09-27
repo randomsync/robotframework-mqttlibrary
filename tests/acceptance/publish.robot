@@ -82,7 +82,7 @@ Listen with no limit returns all 200 QoS 1 messages
     [Tags]    issue-28
     Connect    ${BROKER}    ${PORT}    alias=sub
     Subscribe    ${TOPIC}    qos=1    timeout=0    alias=sub
-    ${msgs}=    Evaluate    [{'topic': $TOPIC, 'payload': str(i), 'qos': 1} for i in range(200)]
+    ${msgs}=    Evaluate    [{'topic': '${TOPIC}', 'payload': str(i), 'qos': 1} for i in range(200)]
     Publish Multiple    ${msgs}    hostname=${BROKER}    port=${PORT}
     @{messages}=    Listen    ${TOPIC}    timeout=3s    limit=0    alias=sub
     ${expected}=    Evaluate    [str(i) for i in range(200)]
