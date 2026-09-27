@@ -18,14 +18,21 @@ Progress towards the next releases is tracked in
 
 ### Changed
 
-- Requires paho-mqtt 2.0 or later below 3, and uses paho's version 2
+- Requires paho-mqtt 2.1 or later below 3, and uses paho's version 2
   callback API. paho-mqtt 1.x is no longer supported; stay on 0.7.x if you
-  need it. Keyword names, arguments and error messages are unchanged, and
+  need it. paho-mqtt 2.0.0 is excluded because its `Client.protocol` property
+  recurses forever. Keyword names and arguments are unchanged, and
   `Publish Single` and `Publish Multiple` still default to MQTT v3.1. CI runs
-  the tests on paho-mqtt 2.0.0 and on the latest 2.x ([#34](https://github.com/randomsync/robotframework-mqttlibrary/issues/34),
+  the tests on paho-mqtt 2.1.0 and on the latest 2.x ([#34](https://github.com/randomsync/robotframework-mqttlibrary/issues/34),
   [#44](https://github.com/randomsync/robotframework-mqttlibrary/issues/44)).
   Based on [PR #36](https://github.com/randomsync/robotframework-mqttlibrary/pull/36)
   by [@lcaiffa](https://github.com/lcaiffa).
+
+  **Breaking:** when the broker refuses the connection, `Publish Single` and
+  `Publish Multiple` fail with paho 2's reason text, for example
+  `Not authorized` or `Bad user name or password`, instead of paho 1's
+  `Connection Refused: not authorised.` Update any `Run Keyword And Expect
+  Error` patterns that match the old text.
 - Packaging moves to `pyproject.toml` built with hatchling, replacing
   `setup.py`, `MANIFEST.in` and `requirements.txt`. The package requires
   Python 3.9 or later and declares its license as the SPDX expression

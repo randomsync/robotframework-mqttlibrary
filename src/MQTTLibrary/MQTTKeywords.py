@@ -23,6 +23,11 @@ def topic_matches_sub(sub, topic):
     except StopIteration:
         return False
 
+# paho 2 defines the protocol versions as an IntEnum. A plain int default keeps
+# Robot Framework converting the argument as an int, as it did with paho 1.
+MQTT_V31 = int(mqtt.MQTTv31)
+
+
 class MQTTKeywords(object):
 
     # Timeout used for all blocking loop* functions. This serves as a
@@ -349,7 +354,7 @@ class MQTTKeywords(object):
 
     def publish_single(self, topic, payload=None, qos=0, retain=False,
             hostname="localhost", port=1883, client_id="", keepalive=60,
-            will=None, auth=None, tls=None, protocol=mqtt.MQTTv31):
+            will=None, auth=None, tls=None, protocol=MQTT_V31):
 
         """ Publish a single message and disconnect. This keyword uses the
         [http://eclipse.org/paho/clients/python/docs/#single|single]
@@ -398,7 +403,7 @@ class MQTTKeywords(object):
 
     def publish_multiple(self, msgs, hostname="localhost", port=1883,
             client_id="", keepalive=60, will=None, auth=None,
-            tls=None, protocol=mqtt.MQTTv31):
+            tls=None, protocol=MQTT_V31):
 
         """ Publish multiple messages and disconnect. This keyword uses the
         [http://eclipse.org/paho/clients/python/docs/#multiple|multiple]
@@ -447,10 +452,10 @@ class MQTTKeywords(object):
                 self._messages[sub].append(payload)
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
-        self._connected = True if reason_code == 0 else False
+        self._connected = not reason_code.is_failure
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
-        if reason_code == 0:
+        if not reason_code.is_failure:
             self._disconnected = True
             self._unexpected_disconnect = False
         else:
