@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "robotframework-mqttlibrary"
+dynamic = ["version"]
+description = "MQTT keyword library for Robot Framework"
+readme = "README.rst"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
+authors = [{ name = "Gaurav Gupta", email = "gaurav@randomsync.net" }]
+keywords = ["robotframework", "testing", "testautomation", "mqtt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Robot Framework",
+    "Framework :: Robot Framework :: Library",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "robotframework>=4",
+    # The library does not work with paho-mqtt 2 yet. The paho 2 migration
+    # (#44) changes this to >=2.0,<3.
+    "paho-mqtt>=1.6,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "twine",
+]
+
+[project.urls]
+Homepage = "https://github.com/randomsync/robotframework-mqttlibrary"
+Documentation = "https://randomsync.github.io/robotframework-mqttlibrary/"
+Issues = "https://github.com/randomsync/robotframework-mqttlibrary/issues"
+Changelog = "https://github.com/randomsync/robotframework-mqttlibrary/blob/master/CHANGELOG.md"
+
+# version.py defines VERSION, not __version__, so the pattern is explicit.
+[tool.hatch.version]
+path = "src/MQTTLibrary/version.py"
+pattern = "VERSION = ['\"](?P<version>[^'\"]+)['\"]"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/MQTTLibrary"]
+
+# Hatchling includes untracked files that .gitignore does not exclude, so a
+# build from a working tree can pick up stray files. .github/check_dist.py
+# rejects any file git does not track, and releases build in CI from a clean
+# checkout.
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/MQTTLibrary",
+    "/README.rst",
+    "/LICENSE.txt",
+    "/CHANGELOG.md",
+]
