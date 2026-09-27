@@ -20,8 +20,8 @@ Progress towards the next releases is tracked in
 
 - Packaging moves to `pyproject.toml` built with hatchling, replacing
   `setup.py`, `MANIFEST.in` and `requirements.txt`. The package requires
-  Python 3.9 or later, and declares its license as the SPDX expression
-  `Apache-2.0` ([#43](https://github.com/randomsync/robotframework-mqttlibrary/issues/43)).
+  Python 3.9 or later and paho-mqtt 1.6 or later below 2, and declares its
+  license as the SPDX expression `Apache-2.0` ([#43](https://github.com/randomsync/robotframework-mqttlibrary/issues/43)).
 - Test brokers now run on Mosquitto 2 through `docker compose up --wait`,
   with explicit listener configs and a regenerated password file ([#40](https://github.com/randomsync/robotframework-mqttlibrary/issues/40)).
 
