@@ -26,7 +26,7 @@ callback_api_version, see docs/migrations.rst for details
 
 | Item              | Today                                   | Target                          |
 |-------------------|-----------------------------------------|---------------------------------|
-| paho-mqtt         | `~=1.1` in requirements, unpinned in `setup.py` (#29) | `>=2.0,<3`         |
+| paho-mqtt         | `~=1.1` in requirements, unpinned in `setup.py` (#29) | `>=2.1,<3`         |
 | Robot Framework   | `~=3.0`                                 | `>=4`, tested on 4.1 and latest 7.x |
 | Python            | 2.7 / 3.7 classifiers                   | 3.9 - 3.14                      |
 | CI                | travis-ci.org (shut down)               | GitHub Actions                  |
@@ -210,7 +210,7 @@ connections that stay alive between keywords.
 ### 4.3 Packaging
 
 `pyproject.toml` with hatchling, `requires-python = ">=3.9"`,
-`paho-mqtt>=2.0,<3`, `robotframework>=4`. `setup.py`, `MANIFEST.in` and
+`paho-mqtt>=2.1,<3`, `robotframework>=4`. `setup.py`, `MANIFEST.in` and
 `requirements.txt` are removed; development dependencies move to a `dev`
 extra.
 
@@ -277,7 +277,7 @@ GitHub Actions on Linux runners:
 
 - **lint:** ruff, and a libdoc build that fails on docstring errors.
 - **test:** Python 3.9-3.14 with the latest Robot Framework and paho, plus a
-  minimum-versions leg (Robot Framework 4.1, paho 2.0.0). Brokers from
+  minimum-versions leg (Robot Framework 4.1, paho 2.1.0). Brokers from
   `docker compose up --wait`. Robot logs uploaded on every run. Combined
   coverage of at least 90%.
 - **build:** sdist and wheel, `twine check`, install and import the wheel.

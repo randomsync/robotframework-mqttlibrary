@@ -11,6 +11,19 @@ Progress towards the next releases is tracked in
 
 ### Added
 
+- `Get Connection Info` returns a connection's alias, host, port, client
+  id, protocol, keepalive and whether it is still connected ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- Type hints on every keyword argument, so Robot Framework converts
+  arguments and libdoc shows their types ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- paho's log messages appear in the Robot log at DEBUG level ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- A library introduction in the keyword documentation that explains
+  connections, aliases, message queues, `limit` and timeouts ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- A `Makefile` with `brokers`, `test`, `test-unit`, `test-acc`, `docs`,
+  `lint` and `clean` targets. A CI `lint` job runs ruff, builds the keyword
+  documentation and dry-runs the acceptance suites. Tests run on Python 3.9
+  to 3.14 with the latest Robot Framework and paho-mqtt, and on Python 3.9
+  with the oldest supported versions, Robot Framework 4.1.3 and paho-mqtt
+  2.1.0 ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - Every connection now runs paho's background network loop from `Connect`
   to `Disconnect`, so keepalive pings, acknowledgements and incoming messages
   are handled between keywords. Connections no longer drop while a test is
@@ -32,6 +45,19 @@ Progress towards the next releases is tracked in
 
 ### Changed
 
+- **Breaking:** `Connect` returns nothing. 0.7 returned the paho client;
+  use `Get Connection Info` for the client id and other details ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- **Breaking:** Robot Framework converts keyword arguments from their type
+  hints, so an invalid value such as `qos=high` fails with Robot Framework's
+  conversion error before the keyword runs. Python code that calls the
+  keywords directly must pass numbers and booleans, not strings ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- `Set Username And Password` accepts `${None}` as the username to clear
+  the credentials ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- The acceptance suites use the space-separated format, share
+  `tests/acceptance/common.resource`, read the broker addresses from the
+  `MQTT_HOST`, `MQTT_PORT`, `MQTT_AUTH_PORT` and `MQTT_WS_PORT` environment
+  variables, and are grouped into `connect`, `publish`, `subscribe`,
+  `wildcards`, `auth` and `connections` ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - **Breaking:** messages are queued per subscription filter from the moment
   of `Connect`, including persistent-session messages that arrive before
   `Subscribe`. `Subscribe` and `Listen` return the oldest messages first and
