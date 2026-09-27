@@ -72,7 +72,7 @@ Contributing
 
 The keywords in this library are based on some of the methods available in eclipse paho client library. If you'd like to add keywords, see instructions_ on creating/updating libraries for Robot Framework.
 
-The tests are in ``tests`` folder and make use of Robot Framework itself. They need two local MQTT brokers: one without authentication, used by most tests, and one that requires a username and password. Both are defined in ``docker-compose.yml``. Start them, run the tests, and stop them when you are done::
+The tests are in ``tests`` folder and make use of Robot Framework itself. They need two local MQTT brokers: one without authentication, used by most tests, and one that requires a username and password. Both are defined in ``docker-compose.yml``. They need Docker Engine 25 or later. Start them, run the tests, and stop them when you are done::
 
     docker compose up --wait
     robot -P src tests
