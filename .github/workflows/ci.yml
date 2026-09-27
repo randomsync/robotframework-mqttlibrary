@@ -56,10 +56,16 @@ jobs:
   # Tests run against the wheel the build job checked, the same file a release
   # would publish.
   test:
-    name: test (baseline)
+    name: test (paho-mqtt ${{ matrix.paho }})
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # "latest" resolves from the wheel's declared range. The other leg is
+        # its lower bound, so keep it in step with pyproject.toml.
+        paho: [latest, "2.0.0"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -79,11 +85,15 @@ jobs:
           name: dist
           path: dist/
 
-      # paho-mqtt comes from the wheel's declared range. Robot Framework is
-      # pinned to 7.x so a new major release cannot turn the baseline red.
+      # Robot Framework is pinned to 7.x so a new major release cannot turn
+      # the tests red. paho-mqtt is resolved in the same install so the pinned
+      # leg never upgrades or downgrades after the wheel is installed.
       - name: Install the wheel
+        env:
+          PAHO: ${{ matrix.paho }}
         run: |
-          python -m pip install dist/*.whl "robotframework~=7.0"
+          if [ "$PAHO" = latest ]; then paho_req="paho-mqtt"; else paho_req="paho-mqtt==$PAHO"; fi
+          python -m pip install dist/*.whl "robotframework~=7.0" "$paho_req"
           python -m pip check
           python -m pip freeze > results/pip-freeze.txt
           python -c "import MQTTLibrary; assert 'site-packages' in MQTTLibrary.__file__, MQTTLibrary.__file__"
@@ -102,7 +112,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: robot-results
+          name: robot-results-paho-${{ matrix.paho }}
           path: results/
           if-no-files-found: error
 

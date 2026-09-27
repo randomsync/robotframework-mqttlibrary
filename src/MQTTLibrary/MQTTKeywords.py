@@ -68,7 +68,11 @@ class MQTTKeywords(object):
         logger.info('Connecting to %s at port %s' % (broker, port))
         self._connected = False
         self._unexpected_disconnect = False
-        self._mqttc = mqtt.Client(client_id, clean_session)
+        self._mqttc = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=client_id,
+            clean_session=clean_session,
+        )
 
         # set callbacks
         self._mqttc.on_connect = self._on_connect
@@ -442,21 +446,21 @@ class MQTTKeywords(object):
             if topic_matches_sub(sub, message.topic):
                 self._messages[sub].append(payload)
 
-    def _on_connect(self, client, userdata, flags, rc):
-        self._connected = True if rc == 0 else False
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
+        self._connected = True if reason_code == 0 else False
 
-    def _on_disconnect(self, client, userdata, rc):
-        if rc == 0:
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
             self._disconnected = True
             self._unexpected_disconnect = False
         else:
             self._unexpected_disconnect = True
 
-    def _on_subscribe(self, client, userdata, mid, granted_qos):
+    def _on_subscribe(self, client, userdata, mid, reason_codes, properties):
         self._subscribed = True
 
-    def _on_unsubscribe(self, client, userdata, mid):
+    def _on_unsubscribe(self, client, userdata, mid, reason_codes, properties):
         self._unsubscribed = True
 
-    def _on_publish(self, client, userdata, mid):
+    def _on_publish(self, client, userdata, mid, reason_code, properties):
         self._mid = mid
