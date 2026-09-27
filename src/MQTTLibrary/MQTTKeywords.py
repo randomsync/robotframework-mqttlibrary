@@ -44,6 +44,9 @@ def _protocol(value):
         ) from None
 
 
+# Timeout arguments are annotated timedelta so Robot Framework converts and
+# validates them, but default to strings such as "1 second" so libdoc shows a
+# readable default. _seconds() accepts both, and numbers from Python callers.
 def _seconds(value):
     """Seconds from a timedelta (converted by Robot Framework) or from a
     number or time string (when called from Python)."""
@@ -188,7 +191,8 @@ class MQTTKeywords(object):
     def get_connection_info(self, alias: Optional[str] = None) -> dict:
         """Return a dictionary describing a connection.
 
-        The keys are ``alias``, ``host``, ``port``, ``client_id``,
+        The keys are ``alias``, ``host``, ``port``, ``client_id`` (the id
+        the client sent, so empty when the broker assigned one),
         ``protocol`` (for example ``MQTTv311``), ``keepalive`` and
         ``connected``. ``connected`` becomes ``${False}`` when the broker
         drops the connection.
