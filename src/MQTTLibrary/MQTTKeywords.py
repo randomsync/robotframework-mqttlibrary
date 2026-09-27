@@ -206,7 +206,8 @@ class MQTTKeywords(object):
             within the specified time. Requires a Subscribe to have been called previously.
 
         Messages are queued from the moment of `Subscribe`, so none are lost
-        between two calls.
+        between two calls. Fails if the connection is lost and no message is
+        queued.
 
         `topic` topic to listen to
 

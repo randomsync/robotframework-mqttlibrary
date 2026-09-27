@@ -64,15 +64,18 @@ Disconnect and Unsubscribe without a connection do nothing
     Unsubscribe    ${TOPIC}    alias=never
     Disconnect    alias=never
 
-Overlapping subscriptions each receive the message
+Overlapping subscriptions each receive every message once
     Connect    ${BROKER}    ${PORT}
     Subscribe    ${TOPIC}/#    qos=1    timeout=0
     Subscribe    ${TOPIC}/1    qos=1    timeout=0
     Publish    ${TOPIC}/1    hello    qos=1
-    @{wide}=    Listen    ${TOPIC}/#    timeout=5s
-    @{narrow}=    Listen    ${TOPIC}/1    timeout=5s
-    Should Be Equal    ${wide}    ${{['hello']}}
-    Should Be Equal    ${narrow}    ${{['hello']}}
+    Publish    ${TOPIC}/1    hello    qos=1
+    Publish    ${TOPIC}/2    other    qos=1
+    # limit=0 so that duplicates would show.
+    @{wide}=    Listen    ${TOPIC}/#    timeout=2s    limit=0
+    @{narrow}=    Listen    ${TOPIC}/1    timeout=0    limit=0
+    Should Be Equal    ${wide}    ${{['hello', 'hello', 'other']}}
+    Should Be Equal    ${narrow}    ${{['hello', 'hello']}}
 
 Unsubscribe keeps the other subscriptions
     Connect    ${BROKER}    ${PORT}

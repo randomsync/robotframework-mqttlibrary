@@ -1,10 +1,11 @@
 import threading
+import time
 
 import paho.mqtt.client as mqtt
 import pytest
 from paho.mqtt.packettypes import PacketTypes
 
-from MQTTLibrary.connection import UNCLAIMED_LIMIT
+from MQTTLibrary.connection import QUEUE_LIMIT
 from conftest import FakeClient, reason
 
 
@@ -34,13 +35,63 @@ def test_unmatched_messages_wait_for_a_filter(lib, client):
     assert lib.listen('b/1', timeout=0) == ['other']
 
 
-def test_unclaimed_queue_is_bounded(lib, client):
-    for i in range(UNCLAIMED_LIMIT + 1):
+def test_unclaimed_queue_is_bounded(lib, client, log):
+    for i in range(QUEUE_LIMIT + 1):
         client.fire_message('a', str(i))
     lib.subscribe('a', 1, timeout=0)
     messages = lib.listen('a', timeout=0, limit=0)
-    assert len(messages) == UNCLAIMED_LIMIT
+    assert len(messages) == QUEUE_LIMIT
     assert messages[0] == '1'
+    assert log.warnings == ['1 messages that matched no filter were dropped '
+                            'because more than %d were queued' % QUEUE_LIMIT]
+
+
+def test_filter_queue_is_bounded(lib, client, log):
+    lib.subscribe('a', 1, timeout=0)
+    for i in range(QUEUE_LIMIT + 2):
+        client.fire_message('a', str(i))
+    messages = lib.listen('a', timeout=0, limit=0)
+    assert len(messages) == QUEUE_LIMIT
+    assert messages[0] == '2'
+    assert log.warnings == ['2 messages on a were dropped because more than '
+                            '%d were queued' % QUEUE_LIMIT]
+    client.fire_message('a', 'next')
+    lib.listen('a', timeout=0)
+    assert len(log.warnings) == 1
+
+
+def test_broker_copies_for_overlapping_filters_are_not_duplicated(lib,
+                                                                   client):
+    # Mosquitto sends one copy per matching subscription, back to back.
+    lib.subscribe('a/#', 1, timeout=0)
+    lib.subscribe('a/+', 1, timeout=0)
+    lib.subscribe('a/1', 1, timeout=0)
+    for payload in ('one', 'two'):
+        for _ in range(3):
+            client.fire_message('a/1', payload)
+    client.fire_message('a/2', 'three')
+    client.fire_message('a/2', 'three')
+    for topic in ('a/#', 'a/+'):
+        assert lib.listen(topic, timeout=0, limit=0) == ['one', 'two',
+                                                         'three']
+    assert lib.listen('a/1', timeout=0, limit=0) == ['one', 'two']
+
+
+def test_single_copy_for_overlapping_filters_reaches_each(lib, client):
+    # Brokers may also send a single copy for overlapping subscriptions.
+    lib.subscribe('a/#', 1, timeout=0)
+    lib.subscribe('a/1', 1, timeout=0)
+    client.fire_message('a/1', 'one')
+    client.fire_message('a/1', 'two')
+    assert lib.listen('a/#', timeout=0, limit=0) == ['one', 'two']
+    assert lib.listen('a/1', timeout=0, limit=0) == ['one', 'two']
+
+
+def test_identical_messages_for_one_filter_are_kept(lib, client):
+    lib.subscribe('a', 1, timeout=0)
+    client.fire_message('a', 'same')
+    client.fire_message('a', 'same')
+    assert lib.listen('a', timeout=0, limit=0) == ['same', 'same']
 
 
 def test_subscribing_again_keeps_queued_messages(lib, client):
@@ -90,6 +141,35 @@ def test_listen_returns_when_the_limit_arrives(lib, client):
     timer.join()
 
 
+def test_listen_fails_when_the_connection_drops(lib, client):
+    lib.subscribe('a', 1, timeout=0)
+    timer = threading.Timer(0.05, client.fire_disconnect, (
+        reason(PacketTypes.DISCONNECT, 'Keep alive timeout'),))
+    timer.start()
+    with pytest.raises(RuntimeError, match=r'^Listen on a failed \(connection '
+                       r'lost: Keep alive timeout\)$'):
+        lib.listen('a', timeout='5 s', limit=0)
+    timer.join()
+
+
+def test_listen_after_a_drop_returns_what_was_received(lib, client):
+    lib.subscribe('a', 1, timeout=0)
+    client.fire_message('a', 'one')
+    client.fire_disconnect(reason(PacketTypes.DISCONNECT, 'Unspecified error'))
+    assert lib.listen('a', timeout='5 s', limit=2) == ['one']
+
+
+def test_listen_drops_only_an_undecodable_message(lib, client):
+    lib.subscribe('a', 1, timeout=0)
+    client.fire_message('a', 'one')
+    client.fire_message('a', b'\xff')
+    client.fire_message('a', 'three')
+    with pytest.raises(RuntimeError, match='^Dropped a message on a that is '
+                       'not valid UTF-8: '):
+        lib.listen('a', timeout=0, limit=0)
+    assert lib.listen('a', timeout=0, limit=0) == ['one', 'three']
+
+
 def test_listen_without_subscribe_warns(lib, client, log):
     assert lib.listen('a', timeout=0) == []
     assert log.warnings == ['Cannot listen when not subscribed to topic: a']
@@ -107,6 +187,23 @@ def test_subscribe_and_validate_waits_for_a_match(lib, client):
     timer = threading.Timer(0.05, client.fire_message, ('a', 'late'))
     timer.start()
     lib.subscribe_and_validate('a', 1, 'late', timeout='5 s')
+    timer.join()
+
+
+def test_subscribe_and_validate_skips_undecodable_messages(lib, client):
+    client.fire_message('a', b'\xff')
+    client.fire_message('a', 'yes')
+    lib.subscribe_and_validate('a', 1, 'yes', timeout=0)
+
+
+def test_subscribe_and_validate_fails_when_the_connection_drops(lib, client):
+    timer = threading.Timer(0.05, client.fire_disconnect, (
+        reason(PacketTypes.DISCONNECT, 'Keep alive timeout'),))
+    timer.start()
+    with pytest.raises(AssertionError, match=r"^The expected payload didn't "
+                       r"arrive in the topic \(connection lost: Keep alive "
+                       r"timeout\)$"):
+        lib.subscribe_and_validate('a', 1, 'yes', timeout='5 s')
     timer.join()
 
 
@@ -171,7 +268,7 @@ def test_refused_connect_fails_with_the_reason(lib, fake, monkeypatch):
                        'failed: Not authorized$'):
         lib.connect('broker.test')
     client = fake.instances[-1]
-    assert client.loop_stops == 1
+    assert client.stopped
     assert lib._connections == {}
 
 
@@ -191,7 +288,7 @@ def test_connect_times_out_without_connack(lib, fake, monkeypatch):
     with pytest.raises(RuntimeError, match='^Connection to broker.test:1883 '
                        'failed: no CONNACK within 0.2 seconds$'):
         lib.connect('broker.test')
-    assert fake.instances[-1].loop_stops == 1
+    assert fake.instances[-1].stopped
 
 
 def test_disconnect_before_connack_fails_connect(lib, fake, monkeypatch):
@@ -201,7 +298,10 @@ def test_disconnect_before_connack_fails_connect(lib, fake, monkeypatch):
         self.loop_start = lambda: self.fire_disconnect(
             reason(PacketTypes.DISCONNECT, 'Unspecified error'))
     monkeypatch.setattr(FakeClient, '__init__', dropping_init)
-    with pytest.raises(RuntimeError, match='failed: Unspecified error$'):
+    with pytest.raises(RuntimeError, match=r'failed: the broker closed the '
+                       r'connection without accepting it \(Unspecified '
+                       r'error\). It may have rejected the protocol version '
+                       r'or the client id$'):
         lib.connect('broker.test')
 
 
@@ -221,7 +321,7 @@ def test_connect_again_on_an_alias_replaces_it(lib, fake, log):
     old = fake.instances[-1]
     lib.connect('broker.test', alias='sub')
     assert old.disconnects == 1
-    assert old.loop_stops == 1
+    assert old.stopped
     assert log.warnings == ["Connection 'sub' to broker.test:1883 was still "
                             "open. Disconnecting it before connecting again."]
     assert lib._connections['sub'].client is fake.instances[-1]
@@ -275,16 +375,35 @@ def test_disconnect_and_unsubscribe_without_a_connection_do_nothing(lib):
 def test_disconnect_stops_the_loop(lib, client):
     lib.disconnect()
     assert client.disconnects == 1
-    assert client.loop_stops == 1
+    assert client.stopped
     assert lib._connections == {}
 
 
 def test_disconnect_without_confirmation_warns(lib, client, log):
     client.disconnect_reason = None
     lib.disconnect()
-    assert client.loop_stops == 1
+    assert client.stopped
     assert log.warnings == ['The broker did not confirm the disconnect of '
                             'broker.test:1883 within 0.2 seconds']
+
+
+def test_disconnect_does_not_wait_for_a_stuck_loop(lib, client, log):
+    client.stuck = True
+    start = time.monotonic()
+    lib.disconnect()
+    assert time.monotonic() - start < 1
+    assert log.warnings == ['The broker did not confirm the disconnect of '
+                            'broker.test:1883 within 0.2 seconds']
+    client.stuck = False
+    client.loop_thread.join()
+
+
+def test_disconnect_after_the_loop_ended_by_itself(lib, client):
+    client._thread_terminate = True
+    client.loop_thread.join()
+    assert client._thread is None
+    lib.disconnect()
+    assert client.stopped
 
 
 def test_disconnect_after_a_lost_connection_fails(lib, client):
@@ -293,7 +412,7 @@ def test_disconnect_after_a_lost_connection_fails(lib, client):
                        'unexpectedly: Session taken over$'):
         lib.disconnect()
     assert client.disconnects == 0
-    assert client.loop_stops == 1
+    assert client.stopped
 
 
 def test_disconnect_all_tries_every_connection(lib, fake):
@@ -305,7 +424,7 @@ def test_disconnect_all_tries_every_connection(lib, fake):
                        'The client disconnected unexpectedly: Unspecified '
                        'error$'):
         lib.disconnect_all()
-    assert [c.loop_stops for c in (one, two, three)] == [1, 1, 1]
+    assert all(c.stopped for c in (one, two, three))
     assert lib._connections == {}
     assert lib._alias == 'default'
 
@@ -365,6 +484,27 @@ def test_refused_repeat_subscription_keeps_the_filter(lib, client):
     with pytest.raises(RuntimeError):
         lib.subscribe('a', 1, timeout=0)
     assert lib.listen('a', timeout=0) == ['one']
+
+
+def test_failed_subscribe_keeps_unclaimed_messages(lib, client):
+    client.fire_message('a', 'queued')
+    client.suback = None
+    with pytest.raises(RuntimeError, match='not acknowledged'):
+        lib.subscribe('a', 1, timeout=0)
+    client.suback = [reason(PacketTypes.SUBACK, 'Granted QoS 1')]
+    assert lib.subscribe('a', 1, timeout='1 s') == ['queued']
+
+
+def test_late_suback_does_not_answer_a_later_subscribe(lib, client):
+    client.suback = None
+    with pytest.raises(RuntimeError, match='not acknowledged'):
+        lib.subscribe('a', 1, timeout=0)
+    late_mid = client._mid
+    conn = lib._connections['default']
+    client.on_subscribe(client, None, late_mid,
+                        [reason(PacketTypes.SUBACK, 'Granted QoS 1')], None)
+    assert conn._acks == {}
+    assert conn._abandoned == set()
 
 
 def test_subscribe_error_names_the_paho_code(lib, client):

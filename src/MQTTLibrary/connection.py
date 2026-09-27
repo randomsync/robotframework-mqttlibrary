@@ -6,7 +6,9 @@ callbacks below run on that thread while keywords run on Robot Framework's
 main thread. Everything the two share is guarded by ``self._cond``, one
 ``threading.Condition`` per connection. Callbacks only update state and
 notify; they never log, because Robot Framework ignores log messages from
-other threads.
+other threads. Keyword-side methods never call into paho while holding
+``self._cond``: paho takes its own locks around callbacks, so doing so could
+deadlock.
 """
 
 import collections
@@ -15,16 +17,27 @@ import threading
 import time
 
 import paho.mqtt.client as mqtt
+from robot.api import logger
 
-# Messages that match no registered filter wait here until a Subscribe claims
-# them. This keeps persistent-session messages that the broker delivers
-# between CONNACK and SUBSCRIBE. The bound stops a connection that nobody
-# reads from growing without limit; the oldest messages are dropped first.
-UNCLAIMED_LIMIT = 10000
+# The most messages a queue holds. When a queue is full the oldest message is
+# dropped, and the next Listen on that filter warns. The unclaimed queue holds
+# messages that match no registered filter, for example persistent-session
+# messages the broker delivers between CONNACK and SUBSCRIBE, until a
+# Subscribe claims them.
+QUEUE_LIMIT = 10000
 
 
-def _decode(message):
-    return message.payload.decode('utf-8')
+class _Queue(collections.deque):
+    """A bounded message queue that counts the messages it dropped."""
+
+    def __init__(self, messages=()):
+        super().__init__(messages, maxlen=QUEUE_LIMIT)
+        self.dropped = 0
+
+    def put(self, message):
+        if len(self) == self.maxlen:
+            self.dropped += 1
+        self.append(message)
 
 
 class _Connection(object):
@@ -40,11 +53,12 @@ class _Connection(object):
 
         self._cond = threading.Condition()
         self._filters = {}
-        self._unclaimed = collections.deque(maxlen=UNCLAIMED_LIMIT)
+        self._unclaimed = _Queue()
+        self._duplicates = None
         self._acks = {}
+        self._abandoned = set()
         self._connack = None
         self._disconnect_reason = None
-        self._connected = False
         self._thread = None
 
         # reconnect_on_failure must be False: with the background loop and
@@ -72,6 +86,11 @@ class _Connection(object):
         self.client.on_subscribe = self._on_ack
         self.client.on_unsubscribe = self._on_ack
 
+    @property
+    def _connected(self):
+        return (self._connack is not None and not self._connack.is_failure
+                and self._disconnect_reason is None)
+
     # Keyword-side operations, called from Robot Framework's thread.
 
     def open(self):
@@ -92,14 +111,22 @@ class _Connection(object):
                 lambda: (self._connack is not None
                          or self._disconnect_reason is not None),
                 self.timeout)
+            if self._connected:
+                return
             connack = self._connack
             reason = self._disconnect_reason
-        if connack is not None and not connack.is_failure and reason is None:
-            return
 
-        if connack is not None and connack.is_failure:
-            reason = connack
-        elif reason is None:
+        if connack is not None:
+            # A refused CONNACK, or a disconnect right after accepting.
+            reason = connack if connack.is_failure else reason
+        elif reason is not None:
+            # With MQTT 3.1.1 and reconnect_on_failure=False, paho does not
+            # report CONNACK codes 1 (unacceptable protocol version) and 2
+            # (identifier rejected); it closes the connection instead.
+            reason = ('the broker closed the connection without accepting '
+                      'it (%s). It may have rejected the protocol version or '
+                      'the client id' % reason)
+        else:
             reason = 'no CONNACK within %s seconds' % self.timeout
         # Closes the socket if it is still open, for example after a timeout.
         self.client.disconnect()
@@ -110,25 +137,23 @@ class _Connection(object):
     def close(self):
         """Disconnect and stop the network loop.
 
-        Returns False if the broker did not confirm the disconnect within the
-        timeout. Raises if the connection was lost before or during the
-        disconnect.
+        Returns False if the broker did not confirm the disconnect, or the
+        network thread did not end, within the timeout. Raises if the
+        connection was lost before or during the disconnect.
         """
-        with self._cond:
-            connected = self._connected
         confirmed = True
-        if connected:
+        if self._connected:
             self.client.disconnect()
             with self._cond:
                 confirmed = self._cond.wait_for(
                     lambda: self._disconnect_reason is not None,
                     self.timeout)
-        self._stop()
+        stopped = self._stop()
         reason = self._disconnect_reason
         if reason is not None and reason.is_failure:
             raise RuntimeError('The client disconnected unexpectedly: %s'
                                % reason)
-        return confirmed
+        return confirmed and stopped
 
     def publish(self, topic, payload, qos, retain):
         info = self.client.publish(topic, payload, qos, retain)
@@ -160,7 +185,9 @@ class _Connection(object):
                                    % (topic, failures[0]))
         except Exception:
             if created:
-                self.unregister(topic)
+                # Keeps what register() took from the unclaimed queue, so a
+                # retried Subscribe still gets persistent-session messages.
+                self.unregister(topic, keep_messages=True)
             raise
 
     def unsubscribe(self, topic):
@@ -180,34 +207,66 @@ class _Connection(object):
     def listen(self, topic, timeout, limit):
         """Return up to ``limit`` of the oldest messages on ``topic``.
 
-        Waits until ``limit`` messages are queued or ``timeout`` elapses. With
-        ``limit`` 0, waits the whole timeout and returns everything. Returns
-        None if ``topic`` is not a registered filter.
+        Waits until ``limit`` messages are queued, the connection is lost, or
+        ``timeout`` elapses. With ``limit`` 0, waits the whole timeout and
+        returns everything. Returns None if ``topic`` is not a registered
+        filter. Fails if the connection is lost and nothing is queued.
         """
         with self._cond:
             queue = self._filters.get(topic)
             if queue is None:
                 return None
+            def lost():
+                return self._disconnect_reason is not None
+
             if limit > 0:
-                self._cond.wait_for(lambda: len(queue) >= limit, timeout)
+                self._cond.wait_for(lambda: len(queue) >= limit or lost(),
+                                    timeout)
             else:
-                self._cond.wait_for(lambda: False, timeout)
+                self._cond.wait_for(lost, timeout)
+            self._warn_dropped(topic, queue)
+            if not queue and lost():
+                raise RuntimeError('Listen on %s failed%s'
+                                   % (topic, self._lost()))
             count = len(queue) if limit == 0 else min(limit, len(queue))
-            return [_decode(queue.popleft()) for _ in range(count)]
+            # Decode before taking, so an undecodable message does not take
+            # the good ones with it.
+            messages = []
+            for index in range(count):
+                try:
+                    messages.append(_decode(queue[index]))
+                except UnicodeDecodeError as exc:
+                    del queue[index]
+                    raise RuntimeError('Dropped a message on %s that is not '
+                                       'valid UTF-8: %s' % (topic, exc)) \
+                        from None
+            for _ in range(count):
+                queue.popleft()
+            return messages
 
     def validate(self, topic, pattern, timeout):
         """Take messages from ``topic`` until one matches ``pattern``.
 
-        Returns True on a match, False if none arrives within ``timeout``.
-        Messages that do not match are consumed.
+        Returns True on a match. Returns False if none arrives within
+        ``timeout``, and raises AssertionError if the connection is lost
+        first. Messages that do not match, including ones that are not valid
+        UTF-8, are consumed.
         """
         deadline = time.monotonic() + timeout
         with self._cond:
             queue = self._filters[topic]
             while True:
+                self._warn_dropped(topic, queue)
                 while queue:
-                    if re.match(pattern, _decode(queue.popleft())):
+                    try:
+                        payload = _decode(queue.popleft())
+                    except UnicodeDecodeError:
+                        continue
+                    if re.match(pattern, payload):
                         return True
+                if self._disconnect_reason is not None:
+                    raise AssertionError("The expected payload didn't arrive "
+                                         "in the topic%s" % self._lost())
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return False
@@ -223,20 +282,28 @@ class _Connection(object):
         with self._cond:
             if topic in self._filters:
                 return False
-            queue = self._filters[topic] = collections.deque()
-            unclaimed = collections.deque()
+            self._warn_dropped(None, self._unclaimed)
+            queue = self._filters[topic] = _Queue()
+            unclaimed = []
             for message in self._unclaimed:
                 if mqtt.topic_matches_sub(topic, message.topic):
-                    queue.append(message)
+                    queue.put(message)
                 else:
                     unclaimed.append(message)
             self._unclaimed.clear()
             self._unclaimed.extend(unclaimed)
             return True
 
-    def unregister(self, topic):
+    def unregister(self, topic, keep_messages=False):
+        """Stop queueing messages for ``topic``.
+
+        With ``keep_messages``, its queued messages go back to the front of
+        the unclaimed queue.
+        """
         with self._cond:
-            self._filters.pop(topic, None)
+            queue = self._filters.pop(topic, None)
+            if keep_messages and queue:
+                self._unclaimed.extendleft(reversed(queue))
 
     # Internals.
 
@@ -250,7 +317,19 @@ class _Connection(object):
                 lambda: (mid in self._acks
                          or self._disconnect_reason is not None),
                 self.timeout)
+            if mid not in self._acks:
+                # A late ack for this mid must not answer a later operation
+                # that reuses the mid.
+                self._abandoned.add(mid)
             return self._acks.pop(mid, None)
+
+    def _warn_dropped(self, topic, queue):
+        """Warn once about messages a full queue dropped. Holds the lock."""
+        if queue.dropped:
+            where = 'on %s' % topic if topic else 'that matched no filter'
+            logger.warn('%d messages %s were dropped because more than %d '
+                        'were queued' % (queue.dropped, where, QUEUE_LIMIT))
+            queue.dropped = 0
 
     def _lost(self):
         reason = self._disconnect_reason
@@ -259,45 +338,69 @@ class _Connection(object):
         return ' (connection lost: %s)' % reason
 
     def _stop(self):
-        """Stop the network loop and wait for its thread to end."""
-        self.client.loop_stop()
-        # paho clears its own thread reference when the loop ends by itself,
-        # for example after a refused CONNACK, so join the one kept at
-        # loop_start() to be sure it has finished.
-        if self._thread is not None:
-            self._thread.join(self.timeout)
-            self._thread = None
+        """Stop the network loop and wait up to the timeout for its thread.
+
+        Does what paho's loop_stop() does, but with a bounded join. paho's own
+        join has no timeout, so a DISCONNECT that cannot be written would block
+        until the keepalive closes the socket. loop_stop() also fails if the
+        thread clears its reference while ending by itself, for example after
+        a refused CONNACK. Returns False if the thread is still running.
+        """
+        thread, self._thread = self._thread, None
+        if thread is None:
+            return True
+        self.client._thread_terminate = True
+        thread.join(self.timeout)
+        return not thread.is_alive()
 
     # paho callbacks, called from the network thread.
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         with self._cond:
             self._connack = reason_code
-            self._connected = not reason_code.is_failure
             self._cond.notify_all()
 
     def _on_disconnect(self, client, userdata, flags, reason_code,
                        properties):
         with self._cond:
-            self._connected = False
             self._disconnect_reason = reason_code
             self._cond.notify_all()
 
     def _on_ack(self, client, userdata, mid, reason_codes, properties):
         with self._cond:
+            if mid in self._abandoned:
+                self._abandoned.discard(mid)
+                return
             self._acks[mid] = reason_codes
             self._cond.notify_all()
 
     def _on_message(self, client, userdata, message):
+        # With overlapping subscriptions (a/# and a/1), MQTT 3.1.1 lets the
+        # broker send either one copy or one copy per matching subscription;
+        # Mosquitto sends one per subscription, back to back. The first copy
+        # goes into every matching queue, and the identical copies that follow
+        # it directly are dropped, so each filter gets the message once
+        # either way.
+        key = (message.topic, message.payload, message.retain)
         with self._cond:
-            matched = False
-            for topic, queue in self._filters.items():
-                if mqtt.topic_matches_sub(topic, message.topic):
-                    queue.append(message)
-                    matched = True
+            duplicates, self._duplicates = self._duplicates, None
+            if duplicates is not None and duplicates[0] == key:
+                if duplicates[1] > 1:
+                    self._duplicates = (key, duplicates[1] - 1)
+                return
+            matched = [queue for topic, queue in self._filters.items()
+                       if mqtt.topic_matches_sub(topic, message.topic)]
+            for queue in matched:
+                queue.put(message)
             if not matched:
-                self._unclaimed.append(message)
+                self._unclaimed.put(message)
+            if len(matched) > 1:
+                self._duplicates = (key, len(matched) - 1)
             self._cond.notify_all()
+
+
+def _decode(message):
+    return message.payload.decode('utf-8')
 
 
 def _error_name(rc):

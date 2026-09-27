@@ -7,6 +7,8 @@ answer to None to make the broker stay silent.
 """
 
 import importlib
+import threading
+import time
 
 import paho.mqtt.client as mqtt
 import pytest
@@ -45,7 +47,8 @@ class FakeClient(object):
         self.disconnect_reason = reason(PacketTypes.DISCONNECT,
                                         'Normal disconnection')
         self.loop_starts = 0
-        self.loop_stops = 0
+        self.stuck = False
+        self._thread_terminate = False
         self.disconnects = 0
         self.subscriptions = []
         self.unsubscriptions = []
@@ -69,11 +72,24 @@ class FakeClient(object):
 
     def loop_start(self):
         self.loop_starts += 1
+        self.loop_thread = threading.Thread(target=self._loop_forever,
+                                            daemon=True)
+        self._thread = self.loop_thread
+        self.loop_thread.start()
         if self.connack is not None:
             self.on_connect(self, None, None, self.connack, None)
 
-    def loop_stop(self):
-        self.loop_stops += 1
+    def _loop_forever(self):
+        # Runs until the library sets _thread_terminate, like paho's loop.
+        # With `stuck`, it ignores that, like a loop that cannot write.
+        while not self._thread_terminate or self.stuck:
+            time.sleep(0.001)
+        # paho 2.1 clears its reference when the loop ends.
+        self._thread = None
+
+    @property
+    def stopped(self):
+        return self._thread_terminate and not self.loop_thread.is_alive()
 
     def disconnect(self):
         self.disconnects += 1
@@ -106,7 +122,9 @@ class FakeClient(object):
 
     def fire_message(self, topic, payload, qos=0):
         message = mqtt.MQTTMessage(topic=topic.encode())
-        message.payload = payload.encode()
+        if isinstance(payload, str):
+            payload = payload.encode()
+        message.payload = payload
         message.qos = qos
         self.on_message(self, None, message)
 
@@ -141,6 +159,7 @@ def fake(monkeypatch):
 def log(monkeypatch):
     recorder = Recorder()
     monkeypatch.setattr(keywords, 'logger', recorder)
+    monkeypatch.setattr(connection, 'logger', recorder)
     return recorder
 
 

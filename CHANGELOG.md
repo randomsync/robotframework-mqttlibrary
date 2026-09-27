@@ -39,7 +39,12 @@ Progress towards the next releases is tracked in
   the newest ones and discarded the others ([#23](https://github.com/randomsync/robotframework-mqttlibrary/issues/23)). Because every
   delivered message is now read and acknowledged, `limit` no longer leaves
   messages on the broker for a later session. Subscribing again to a filter
-  keeps its queue. `Subscribe` with `timeout=0` returns an empty list
+  keeps its queue. With overlapping filters (`a/#` and `a/1`) each filter
+  gets a message once, whether the broker sends one copy or one per
+  subscription. Each queue holds up to 10000 messages; beyond that the oldest
+  are dropped with a warning. `Listen` fails if the connection drops and
+  nothing is queued, and fails on a payload that is not valid UTF-8, dropping
+  only that message. `Subscribe` with `timeout=0` returns an empty list
   ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
 - **Breaking:** connecting again on an alias that is still connected
   disconnects the old connection with a warning. 0.7 left the old connection
@@ -60,7 +65,8 @@ Progress towards the next releases is tracked in
   loop ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
 - `Subscribe And Validate` reads from the same queues as `Listen`, so it can
   be mixed with `Subscribe` on one connection. It consumes the messages that
-  do not match. Its error text is unchanged ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
+  do not match. Its error text is unchanged, with the reason appended if the
+  connection drops while it waits ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
 - `Publish Single` and `Publish Multiple` accept `protocol` as a name
   (`MQTTv31`, `MQTTv311`, `MQTTv5`, any case) or a number, and fail on an
   unknown version ([#45](https://github.com/randomsync/robotframework-mqttlibrary/issues/45)).
