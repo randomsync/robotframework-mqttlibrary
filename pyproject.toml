@@ -28,9 +28,7 @@ classifiers = [
 ]
 dependencies = [
     "robotframework>=4",
-    # The library does not work with paho-mqtt 2 yet. The paho 2 migration
-    # (#44) changes this to >=2.0,<3.
-    "paho-mqtt>=1.6,<2",
+    "paho-mqtt>=2.1,<3",
 ]
 
 [project.optional-dependencies]
