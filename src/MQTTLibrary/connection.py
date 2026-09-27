@@ -26,6 +26,12 @@ from robot.api import logger
 # Subscribe claims them.
 QUEUE_LIMIT = 10000
 
+# How long a late SUBACK or UNSUBACK for an operation that timed out is
+# recognised and discarded. After that the mid is free again, so an
+# acknowledgement that never came cannot block a later operation that reuses
+# the mid once paho's 16-bit counter wraps.
+ABANDONED_ACK_SECONDS = 60
+
 
 class _Queue(collections.deque):
     """A bounded message queue that counts the messages it dropped."""
@@ -56,7 +62,7 @@ class _Connection(object):
         self._unclaimed = _Queue()
         self._duplicates = None
         self._acks = {}
-        self._abandoned = set()
+        self._abandoned = {}
         self._connack = None
         self._disconnect_reason = None
         self._thread = None
@@ -303,7 +309,13 @@ class _Connection(object):
         with self._cond:
             queue = self._filters.pop(topic, None)
             if keep_messages and queue:
-                self._unclaimed.extendleft(reversed(queue))
+                # The returned messages are the oldest, so when the unclaimed
+                # queue is full the oldest go, as with any other overflow.
+                messages = list(queue) + list(self._unclaimed)
+                overflow = max(0, len(messages) - QUEUE_LIMIT)
+                self._unclaimed.dropped += overflow
+                self._unclaimed.clear()
+                self._unclaimed.extend(messages[overflow:])
 
     # Internals.
 
@@ -320,7 +332,7 @@ class _Connection(object):
             if mid not in self._acks:
                 # A late ack for this mid must not answer a later operation
                 # that reuses the mid.
-                self._abandoned.add(mid)
+                self._abandoned[mid] = time.monotonic()
             return self._acks.pop(mid, None)
 
     def _warn_dropped(self, topic, queue):
@@ -344,11 +356,13 @@ class _Connection(object):
         join has no timeout, so a DISCONNECT that cannot be written would block
         until the keepalive closes the socket. loop_stop() also fails if the
         thread clears its reference while ending by itself, for example after
-        a refused CONNACK. Returns False if the thread is still running.
+        a refused CONNACK. Returns False if the thread is still running; it
+        is a daemon thread and keeps its socket until the loop ends.
         """
         thread, self._thread = self._thread, None
         if thread is None:
             return True
+        # The flag paho 2.1's loop_stop() sets; loop_forever() checks it.
         self.client._thread_terminate = True
         thread.join(self.timeout)
         return not thread.is_alive()
@@ -368,8 +382,9 @@ class _Connection(object):
 
     def _on_ack(self, client, userdata, mid, reason_codes, properties):
         with self._cond:
-            if mid in self._abandoned:
-                self._abandoned.discard(mid)
+            abandoned = self._abandoned.pop(mid, None)
+            if (abandoned is not None and
+                    time.monotonic() - abandoned < ABANDONED_ACK_SECONDS):
                 return
             self._acks[mid] = reason_codes
             self._cond.notify_all()

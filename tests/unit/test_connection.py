@@ -6,6 +6,7 @@ import pytest
 from paho.mqtt.packettypes import PacketTypes
 
 from MQTTLibrary.connection import QUEUE_LIMIT
+from conftest import connection
 from conftest import FakeClient, reason
 
 
@@ -504,7 +505,42 @@ def test_late_suback_does_not_answer_a_later_subscribe(lib, client):
     client.on_subscribe(client, None, late_mid,
                         [reason(PacketTypes.SUBACK, 'Granted QoS 1')], None)
     assert conn._acks == {}
-    assert conn._abandoned == set()
+    assert conn._abandoned == {}
+
+
+def test_long_abandoned_mid_is_free_again(lib, client, monkeypatch):
+    client.suback = None
+    with pytest.raises(RuntimeError, match='not acknowledged'):
+        lib.subscribe('a', 1, timeout=0)
+    conn = lib._connections['default']
+    conn._abandoned[client._mid] -= connection.ABANDONED_ACK_SECONDS
+    # The next operation to get this mid, after the counter wraps.
+    client._mid -= 1
+    client.suback = [reason(PacketTypes.SUBACK, 'Granted QoS 1')]
+    lib.subscribe('a', 1, timeout=0)
+    assert conn._abandoned == {}
+
+
+def test_failed_subscribe_on_a_full_unclaimed_queue_drops_the_oldest(
+        lib, client, monkeypatch):
+    client.fire_message('a', 'oldest')
+    for i in range(QUEUE_LIMIT - 1):
+        client.fire_message('b', str(i))
+    subscribe = client.subscribe
+
+    def subscribe_while_a_message_arrives(topic, qos):
+        client.fire_message('b', 'newest')
+        return subscribe(topic, qos)
+
+    monkeypatch.setattr(client, 'subscribe', subscribe_while_a_message_arrives)
+    client.suback = None
+    with pytest.raises(RuntimeError, match='not acknowledged'):
+        lib.subscribe('a', 1, timeout=0)
+    unclaimed = lib._connections['default']._unclaimed
+    assert len(unclaimed) == QUEUE_LIMIT
+    assert unclaimed[0].payload == b'0'
+    assert unclaimed[-1].payload == b'newest'
+    assert unclaimed.dropped == 1
 
 
 def test_subscribe_error_names_the_paho_code(lib, client):

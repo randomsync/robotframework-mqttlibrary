@@ -41,7 +41,9 @@ Progress towards the next releases is tracked in
   messages on the broker for a later session. Subscribing again to a filter
   keeps its queue. With overlapping filters (`a/#` and `a/1`) each filter
   gets a message once, whether the broker sends one copy or one per
-  subscription. Each queue holds up to 10000 messages; beyond that the oldest
+  subscription. One limit: on a broker that sends a single copy, the second
+  of two identical messages published back to back to such a topic is
+  dropped. Each queue holds up to 10000 messages; beyond that the oldest
   are dropped with a warning. `Listen` fails if the connection drops and
   nothing is queued, and fails on a payload that is not valid UTF-8, dropping
   only that message. `Subscribe` with `timeout=0` returns an empty list
