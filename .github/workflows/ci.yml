@@ -16,55 +16,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test:
-    name: test (baseline)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-
-      # Created first so the broker logs and versions can be saved even when
-      # an early step fails.
-      - name: Create results directory
-        run: mkdir -p results
-
-      # Tests run against the installed package, not the source tree. The
-      # unmodified library needs paho-mqtt 1.x until the paho 2 migration (#44).
-      - name: Install package
-        run: |
-          python -m pip install . "paho-mqtt~=1.6"
-          python -m pip check
-          python -m pip freeze > results/pip-freeze.txt
-          python -c "import MQTTLibrary; assert 'site-packages' in MQTTLibrary.__file__, MQTTLibrary.__file__"
-
-      - name: Start test brokers
-        run: docker compose up --wait --wait-timeout 60
-
-      - name: Run acceptance tests
-        run: robot --outputdir results tests
-
-      - name: Save broker logs
-        if: always()
-        run: docker compose logs --no-color > results/brokers.log 2>&1
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: robot-results
-          path: results/
-          if-no-files-found: error
-
-      - name: Stop test brokers
-        if: always()
-        run: docker compose down
-
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -101,3 +52,61 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
+
+  # Tests run against the wheel the build job checked, the same file a release
+  # would publish.
+  test:
+    name: test (baseline)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # Created first so the broker logs and versions can be saved even when
+      # an early step fails.
+      - name: Create results directory
+        run: mkdir -p results
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      # Baseline pins: the unmodified library needs paho-mqtt 1.x until the
+      # paho 2 migration (#44), and Robot Framework stays on 7.x so a new
+      # major release cannot turn the baseline red.
+      - name: Install the wheel
+        run: |
+          python -m pip install dist/*.whl "paho-mqtt~=1.6" "robotframework~=7.0"
+          python -m pip check
+          python -m pip freeze > results/pip-freeze.txt
+          python -c "import MQTTLibrary; assert 'site-packages' in MQTTLibrary.__file__, MQTTLibrary.__file__"
+
+      - name: Start test brokers
+        run: docker compose up --wait --wait-timeout 60
+
+      - name: Run acceptance tests
+        run: robot --outputdir results tests
+
+      - name: Save broker logs
+        if: always()
+        run: docker compose logs --no-color > results/brokers.log 2>&1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: robot-results
+          path: results/
+          if-no-files-found: error
+
+      - name: Stop test brokers
+        if: always()
+        run: docker compose down

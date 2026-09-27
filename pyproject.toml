@@ -57,7 +57,10 @@ pattern = "VERSION = ['\"](?P<version>[^'\"]+)['\"]"
 [tool.hatch.build.targets.wheel]
 packages = ["src/MQTTLibrary"]
 
-# Explicit list, so a build never picks up stray files from the working tree.
+# Hatchling includes untracked files that .gitignore does not exclude, so a
+# build from a working tree can pick up stray files. .github/check_dist.py
+# rejects any file git does not track, and releases build in CI from a clean
+# checkout.
 [tool.hatch.build.targets.sdist]
 include = [
     "/src/MQTTLibrary",
