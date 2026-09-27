@@ -1,3 +1,0 @@
-# Baseline versions for CI until pyproject.toml replaces this file (#43).
-paho-mqtt~=1.6
-robotframework~=7.0

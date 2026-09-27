@@ -34,17 +34,20 @@ jobs:
       - name: Create results directory
         run: mkdir -p results
 
-      # Baseline for the unmodified library, which needs paho-mqtt 1.x.
-      - name: Install dependencies
+      # Tests run against the installed package, not the source tree. The
+      # unmodified library needs paho-mqtt 1.x until the paho 2 migration (#44).
+      - name: Install package
         run: |
-          python -m pip install -r requirements.txt
+          python -m pip install . "paho-mqtt~=1.6"
+          python -m pip check
           python -m pip freeze > results/pip-freeze.txt
+          python -c "import MQTTLibrary; assert 'site-packages' in MQTTLibrary.__file__, MQTTLibrary.__file__"
 
       - name: Start test brokers
         run: docker compose up --wait --wait-timeout 60
 
       - name: Run acceptance tests
-        run: robot --pythonpath src --outputdir results tests
+        run: robot --outputdir results tests
 
       - name: Save broker logs
         if: always()
@@ -61,3 +64,40 @@ jobs:
       - name: Stop test brokers
         if: always()
         run: docker compose down
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+
+      - name: Check package contents and metadata
+        run: python .github/check_dist.py dist
+
+      - name: Install the wheel in a clean environment
+        run: |
+          python -m venv /tmp/wheel-env
+          /tmp/wheel-env/bin/pip install dist/*.whl
+          /tmp/wheel-env/bin/pip check
+          cd /tmp
+          /tmp/wheel-env/bin/python -c "import MQTTLibrary; print(MQTTLibrary.__version__, MQTTLibrary.__file__)"
+          /tmp/wheel-env/bin/python -m robot.libdoc MQTTLibrary list
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error

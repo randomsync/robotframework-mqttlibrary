@@ -17,15 +17,13 @@ MQTTLibrary is a `Robot Framework`_ library that provides keywords for testing o
 Installation
 ------------
 
-MQTTLibrary can be installed using `pip <http://pip-installer.org>`__::
+MQTTLibrary can be installed using `pip <https://pip.pypa.io>`__::
 
     pip install robotframework-mqttlibrary
 
-You can also install it from the source distribution by running::
+To install from a clone of this repository, run this in its root directory::
 
-    python setup.py install
-
-You may need to run the above command with administrator privileges.
+    pip install .
 
 Usage
 -------

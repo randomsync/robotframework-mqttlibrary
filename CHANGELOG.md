@@ -11,11 +11,17 @@ Progress towards the next releases is tracked in
 
 ### Added
 
+- A CI job builds the sdist and wheel, checks their contents and metadata,
+  and installs the wheel in a clean environment ([#43](https://github.com/randomsync/robotframework-mqttlibrary/issues/43)).
 - Tests run on GitHub Actions for every push to master and every pull
   request, against the docker compose brokers ([#41](https://github.com/randomsync/robotframework-mqttlibrary/issues/41)).
 
 ### Changed
 
+- Packaging moves to `pyproject.toml` built with hatchling, replacing
+  `setup.py`, `MANIFEST.in` and `requirements.txt`. The package requires
+  Python 3.9 or later, and declares its license as the SPDX expression
+  `Apache-2.0` ([#43](https://github.com/randomsync/robotframework-mqttlibrary/issues/43)).
 - Test brokers now run on Mosquitto 2 through `docker compose up --wait`,
   with explicit listener configs and a regenerated password file ([#40](https://github.com/randomsync/robotframework-mqttlibrary/issues/40)).
 
