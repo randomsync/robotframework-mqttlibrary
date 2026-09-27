@@ -97,6 +97,22 @@ Publish Single accepts the protocol as a name or a number
     ...    port=${PORT}    protocol=5
     Listen Should Return    ${TOPIC}    by name    by number    limit=2
 
+Publish rejects a payload paho cannot send
+    ${payload}=    Create Dictionary    a=1
+    Connect    ${BROKER}    ${PORT}
+    Run Keyword And Expect Error    *payload must be a string, bytearray, int, float or None*
+    ...    Publish    ${TOPIC}    ${payload}
+
+Publish Single takes an SSL context for tls
+    [Documentation]    The broker has no TLS listener, so the handshake fails;
+    ...    the point is that the context reaches paho.
+    ${context}=    Evaluate    ssl.create_default_context()    modules=ssl
+    ${status}    ${error}=    Run Keyword And Ignore Error
+    ...    Publish Single    ${TOPIC}    hello    hostname=${BROKER}    port=${PORT}
+    ...    tls=${context}
+    Should Be Equal    ${status}    FAIL
+    Should Not Contain    ${error}    cannot be converted
+
 Publish Single rejects an unknown protocol
     Run Keyword And Expect Error    Unknown MQTT protocol version: 7. *
     ...    Publish Single    ${TOPIC}    hello    hostname=${BROKER}

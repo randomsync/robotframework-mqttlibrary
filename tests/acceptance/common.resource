@@ -3,28 +3,30 @@ Documentation     Shared settings and keywords for the acceptance suites.
 ...
 ...               Broker addresses come from environment variables, so the
 ...               suites can run against another broker:
-...               ``MQTT_HOST``, ``MQTT_PORT`` (anonymous broker),
-...               ``MQTT_AUTH_PORT`` (broker with authentication) and
-...               ``MQTT_WS_PORT`` (its websockets listener).
+...               ``MQTT_HOST``, ``MQTT_PORT`` (anonymous broker) and
+...               ``MQTT_AUTH_PORT`` (broker with authentication).
 ...
-...               The keywords here do not return values, so the suites run
-...               unchanged on Robot Framework 4 through 7.
+...               The keywords here do not return values, and ``Evaluate``
+...               expressions do not use ``$var`` syntax, so the suites run
+...               unchanged on Robot Framework 4.1 through 7.
 Library           Collections
+Library           String
 Library           MQTTLibrary
 
 *** Variables ***
 ${BROKER}         %{MQTT_HOST=127.0.0.1}
 ${PORT}           %{MQTT_PORT=1883}
 ${AUTH PORT}      %{MQTT_AUTH_PORT=11883}
-${WS PORT}        %{MQTT_WS_PORT=9001}
 
 *** Keywords ***
 Create Unique Topic
     [Documentation]    Sets ``${TOPIC}`` to a topic only this test uses,
     ...    built from the test name and a random suffix, and ``${CLIENT}``
     ...    to a matching client id. Suites use it as their test setup.
-    ${name}=    Evaluate    re.sub(r'[^a-z0-9]+', '-', $TEST_NAME.lower()).strip('-')[:40]
-    ...    modules=re
+    ${name}=    Convert To Lower Case    ${TEST NAME}
+    ${name}=    Replace String Using Regexp    ${name}    [^a-z0-9]+    -
+    ${name}=    Strip String    ${name}    characters=-
+    ${name}=    Get Substring    ${name}    0    40
     ${id}=    Evaluate    uuid.uuid4().hex[:12]    modules=uuid
     Set Test Variable    ${TOPIC}    test/${name}/${id}
     Set Test Variable    ${CLIENT}    robot.${id}

@@ -28,8 +28,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The dev extra pins ruff.
       - name: Install
-        run: python -m pip install . ruff
+        run: python -m pip install ".[dev]"
 
       - name: Ruff
         run: |
@@ -126,16 +127,22 @@ jobs:
           name: dist
           path: dist/
 
-      # The latest legs take Robot Framework and paho-mqtt from the wheel's
-      # declared ranges. The minimum leg pins them in the same install, so
-      # they are never upgraded or downgraded afterwards.
+      # The latest legs take the newest Robot Framework 7 and the newest
+      # paho-mqtt in the wheel's range. Robot Framework stays below 8 so a new
+      # major release cannot turn every PR red; supporting it is a deliberate
+      # change. The minimum leg pins both in the same install, so they are
+      # never upgraded or downgraded afterwards.
       - name: Install the wheel
         env:
           ROBOTFRAMEWORK: ${{ matrix.robotframework }}
           PAHO: ${{ matrix.paho }}
         run: |
           reqs=(dist/*.whl coverage pytest)
-          if [ -n "$ROBOTFRAMEWORK" ]; then reqs+=("robotframework==$ROBOTFRAMEWORK"); fi
+          if [ -n "$ROBOTFRAMEWORK" ]; then
+            reqs+=("robotframework==$ROBOTFRAMEWORK")
+          else
+            reqs+=("robotframework<8")
+          fi
           if [ -n "$PAHO" ]; then reqs+=("paho-mqtt==$PAHO"); fi
           python -m pip install "${reqs[@]}"
           python -m pip check

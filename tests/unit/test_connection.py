@@ -277,6 +277,12 @@ def test_connect_configures_the_client(lib, fake):
     assert client.logger.name == "MQTTLibrary.paho"
 
 
+def test_connect_without_a_client_id(lib, fake):
+    lib.connect("broker.test", client_id=None)
+    assert fake.instances[-1].kwargs["client_id"] == ""
+    assert lib.get_connection_info()["client_id"] == ""
+
+
 def test_credentials_can_be_cleared(lib, fake):
     lib.set_username_and_password("user", "secret")
     lib.set_username_and_password(None)

@@ -132,8 +132,11 @@ Unsubscribe keeps the other subscriptions
     Subscribe    ${TOPIC}/a    qos=1    timeout=0
     Subscribe    ${TOPIC}/b    qos=1    timeout=0
     Unsubscribe    ${TOPIC}/a
+    Publish    ${TOPIC}/a    dropped    qos=1
     Publish    ${TOPIC}/b    hello    qos=1
     Listen Should Return    ${TOPIC}/b    hello
+    @{messages}=    Listen    ${TOPIC}/a    timeout=0
+    Should Be Empty    ${messages}
 
 Subscribing again to a filter keeps its queued messages
     Connect    ${BROKER}    ${PORT}

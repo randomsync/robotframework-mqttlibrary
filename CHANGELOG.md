@@ -21,7 +21,7 @@ Progress towards the next releases is tracked in
 - A `Makefile` with `brokers`, `test`, `test-unit`, `test-acc`, `docs`,
   `lint` and `clean` targets. A CI `lint` job runs ruff, builds the keyword
   documentation and dry-runs the acceptance suites. Tests run on Python 3.9
-  to 3.14 with the latest Robot Framework and paho-mqtt, and on Python 3.9
+  to 3.14 with the latest Robot Framework 7 and paho-mqtt, and on Python 3.9
   with the oldest supported versions, Robot Framework 4.1.3 and paho-mqtt
   2.1.0 ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - Every connection now runs paho's background network loop from `Connect`
@@ -51,12 +51,16 @@ Progress towards the next releases is tracked in
   hints, so an invalid value such as `qos=high` fails with Robot Framework's
   conversion error before the keyword runs. Python code that calls the
   keywords directly must pass numbers and booleans, not strings ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
+- `Publish` and `Publish Single` pass the payload to paho unconverted, so a
+  value paho cannot send, such as a dictionary, fails instead of being
+  published as its text form. `tls` on `Publish Single` and
+  `Publish Multiple` also accepts an `ssl.SSLContext`. `client_id=${None}`
+  on `Connect` means no client id, as an empty string does.
 - `Set Username And Password` accepts `${None}` as the username to clear
   the credentials ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - The acceptance suites use the space-separated format, share
   `tests/acceptance/common.resource`, read the broker addresses from the
-  `MQTT_HOST`, `MQTT_PORT`, `MQTT_AUTH_PORT` and `MQTT_WS_PORT` environment
-  variables, and are grouped into `connect`, `publish`, `subscribe`,
+  `MQTT_HOST`, `MQTT_PORT` and `MQTT_AUTH_PORT` environment variables, and are grouped into `connect`, `publish`, `subscribe`,
   `wildcards`, `auth` and `connections` ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - **Breaking:** messages are queued per subscription filter from the moment
   of `Connect`, including persistent-session messages that arrive before

@@ -9,11 +9,15 @@ RESULTS ?= results
 
 .PHONY: brokers test test-unit test-acc docs lint clean
 
-$(BIN)/python: pyproject.toml
+# A stamp file, not venv/bin/python: that is a symlink, and touching it would
+# change the base interpreter's timestamp.
+STAMP := $(VENV)/.installed
+
+$(STAMP): pyproject.toml
 	$(PYTHON) -m venv $(VENV)
 	$(BIN)/python -m pip install --quiet --upgrade pip
 	$(BIN)/python -m pip install --quiet -e ".[dev]"
-	@touch $@
+	touch $@
 
 # Start the test brokers from docker-compose.yml and wait until they are
 # healthy.
@@ -22,27 +26,33 @@ brokers:
 
 # Unit and acceptance tests under coverage, then the coverage report with the
 # floor from pyproject.toml.
-test: $(BIN)/python
+test: $(STAMP)
 	rm -f .coverage .coverage.*
 	$(BIN)/python -m coverage run -m pytest tests/unit
 	$(BIN)/python -m coverage run -m robot --outputdir $(RESULTS) tests/acceptance
 	$(BIN)/python -m coverage combine
 	$(BIN)/python -m coverage report
 
-test-unit: $(BIN)/python
+test-unit: $(STAMP)
 	$(BIN)/python -m pytest tests/unit
 
-test-acc: $(BIN)/python
+test-acc: $(STAMP)
 	$(BIN)/python -m robot --outputdir $(RESULTS) tests/acceptance
 
-docs: $(BIN)/python
+docs: $(STAMP)
 	$(BIN)/python -m robot.libdoc MQTTLibrary docs/index.html
 
-lint: $(BIN)/python
+# Like CI, the dry run fails on warnings as well as errors.
+lint: $(STAMP)
+	mkdir -p $(RESULTS)
 	$(BIN)/ruff check .
 	$(BIN)/ruff format --check .
 	$(BIN)/python -m robot.libdoc MQTTLibrary $(RESULTS)/MQTTLibrary.html
-	$(BIN)/python -m robot --dryrun --output NONE --report NONE --log NONE tests/acceptance
+	$(BIN)/python -m robot --dryrun --output NONE --report NONE --log NONE \
+		tests/acceptance > $(RESULTS)/dryrun.txt 2>&1; \
+		status=$$?; cat $(RESULTS)/dryrun.txt; test $$status -eq 0
+	@if grep -q '\[ WARN \]' $(RESULTS)/dryrun.txt; then \
+		echo "robot --dryrun printed warnings"; exit 1; fi
 
 clean:
 	docker compose down -v

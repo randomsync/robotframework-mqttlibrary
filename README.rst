@@ -99,7 +99,7 @@ Other targets:
 
 CI requires at least 90% combined coverage (see ``[tool.coverage]`` in ``pyproject.toml``).
 
-The acceptance tests read the broker addresses from environment variables, so they can run against other brokers: ``MQTT_HOST`` (default ``127.0.0.1``), ``MQTT_PORT`` (``1883``), ``MQTT_AUTH_PORT`` (``11883``) and ``MQTT_WS_PORT`` (``9001``). For example::
+The acceptance tests read the broker addresses from environment variables, so they can run against other brokers: ``MQTT_HOST`` (default ``127.0.0.1``), ``MQTT_PORT`` (``1883``) and ``MQTT_AUTH_PORT`` (``11883``). For example::
 
     MQTT_HOST=192.168.1.10 make test-acc
 

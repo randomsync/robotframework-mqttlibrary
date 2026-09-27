@@ -37,7 +37,9 @@ dev = [
     "coverage",
     "pytest",
     "pytest-cov",
-    "ruff",
+    # Pinned so a new ruff release cannot change the lint result; bump it on
+    # purpose.
+    "ruff==0.16.9",
     "twine",
 ]
 

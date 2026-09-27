@@ -1,5 +1,6 @@
+import ssl
 from datetime import timedelta
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -20,8 +21,13 @@ _PROTOCOLS = {
 
 DEFAULT_ALIAS = "default"
 
-# What paho accepts as a message payload.
-Payload = Union[str, bytes, bytearray, int, float, None]
+# paho accepts str, bytes, bytearray, int, float or None as a payload. Any
+# keeps Robot Framework from converting other values to their repr, so paho
+# rejects them instead.
+Payload = Any
+
+# paho's publish helpers take a dict of TLS settings or an ssl.SSLContext.
+TLS = Union[dict, ssl.SSLContext, None]
 
 
 def _protocol(value):
@@ -100,7 +106,7 @@ class MQTTKeywords(object):
         self,
         broker: str,
         port: int = 1883,
-        client_id: str = "",
+        client_id: Optional[str] = "",
         clean_session: bool = True,
         keepalive: int = 60,
         alias: Optional[str] = None,
@@ -117,7 +123,8 @@ class MQTTKeywords(object):
 
         ``port`` broker port (default 1883)
 
-        ``client_id`` if not specified, the broker assigns one
+        ``client_id`` if not specified (empty or ``${None}``), the broker
+        assigns one
 
         ``clean_session`` specifies the clean session flag for the connection.
         With ``${False}`` a ``client_id`` is required.
@@ -167,7 +174,7 @@ class MQTTKeywords(object):
             alias,
             broker,
             port,
-            client_id,
+            client_id or "",
             clean_session,
             keepalive,
             self._loop_timeout,
@@ -226,7 +233,8 @@ class MQTTKeywords(object):
 
         ``topic`` topic to which the message will be published
 
-        ``message`` message payload to publish
+        ``message`` message payload to publish: a string, bytes, a number or
+        ``${None}`` for an empty message
 
         ``qos`` qos of the message
 
@@ -248,7 +256,7 @@ class MQTTKeywords(object):
         self,
         topic: str,
         qos: int,
-        timeout: timedelta = timedelta(seconds=1),
+        timeout: timedelta = "1 second",
         limit: int = 1,
         alias: Optional[str] = None,
     ) -> list:
@@ -294,7 +302,7 @@ class MQTTKeywords(object):
     def listen(
         self,
         topic: str,
-        timeout: timedelta = timedelta(seconds=1),
+        timeout: timedelta = "1 second",
         limit: int = 1,
         alias: Optional[str] = None,
     ) -> list:
@@ -339,7 +347,7 @@ class MQTTKeywords(object):
         topic: str,
         qos: int,
         payload: str,
-        timeout: timedelta = timedelta(seconds=1),
+        timeout: timedelta = "1 second",
         alias: Optional[str] = None,
     ):
         """Subscribe to a topic and validate that the specified payload is
@@ -442,11 +450,11 @@ class MQTTKeywords(object):
         retain: bool = False,
         hostname: str = "localhost",
         port: int = 1883,
-        client_id: str = "",
+        client_id: Optional[str] = "",
         keepalive: int = 60,
         will: Optional[dict] = None,
         auth: Optional[dict] = None,
-        tls: Optional[dict] = None,
+        tls: TLS = None,
         protocol: Union[int, str] = MQTT_V31,
     ):
         """Publish a single message on its own connection and disconnect.
@@ -482,6 +490,7 @@ class MQTTKeywords(object):
             dict = {'ca_certs':"<ca_certs>", 'certfile':"<certfile>",
                 'keyfile':"<keyfile>", 'tls_version':"<tls_version>",
                 'ciphers':"<ciphers">}
+        or an ``ssl.SSLContext``.
 
         ``protocol`` MQTT protocol version, as a name (MQTTv31, MQTTv311 or
         MQTTv5) or a number (3, 4 or 5). Default MQTTv31.
@@ -515,11 +524,11 @@ class MQTTKeywords(object):
         msgs: list,
         hostname: str = "localhost",
         port: int = 1883,
-        client_id: str = "",
+        client_id: Optional[str] = "",
         keepalive: int = 60,
         will: Optional[dict] = None,
         auth: Optional[dict] = None,
-        tls: Optional[dict] = None,
+        tls: TLS = None,
         protocol: Union[int, str] = MQTT_V31,
     ):
         """Publish multiple messages on their own connection and disconnect.

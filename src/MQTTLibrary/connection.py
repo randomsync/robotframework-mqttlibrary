@@ -68,7 +68,6 @@ class _Connection(object):
         self.alias = alias
         self.host = host
         self.port = port
-        self.client_id = client_id
         self.protocol = mqtt.MQTTv311
         self.keepalive = keepalive
         self.timeout = timeout
@@ -126,7 +125,9 @@ class _Connection(object):
             "alias": self.alias,
             "host": self.host,
             "port": self.port,
-            "client_id": self.client_id,
+            # What paho sends, not the argument: paho has no public
+            # accessor for it in 2.1.
+            "client_id": self.client._client_id.decode(),
             "protocol": self.protocol.name,
             "keepalive": self.keepalive,
             "connected": self._connected,

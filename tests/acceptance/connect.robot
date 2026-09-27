@@ -8,6 +8,7 @@ Test Timeout      30 seconds
 
 *** Test Cases ***
 Connect with the default port and client id
+    Skip If    '${PORT}' != '1883'    MQTT_PORT is not the default port
     Connect    ${BROKER}
     ${info}=    Get Connection Info
     Should Be Equal As Integers    ${info}[port]    1883
@@ -15,7 +16,7 @@ Connect with the default port and client id
     Should Be True    ${info}[connected]
 
 Connect with a client id
-    Connect    ${BROKER}    client_id=${CLIENT}
+    Connect    ${BROKER}    ${PORT}    client_id=${CLIENT}
     ${info}=    Get Connection Info
     Should Be Equal    ${info}[client_id]    ${CLIENT}
 
@@ -28,8 +29,9 @@ Connect with a port and a client id
 Get Connection Info describes the connection
     Connect    ${BROKER}    ${PORT}    ${CLIENT}    keepalive=30    alias=info
     ${info}=    Get Connection Info    info
+    ${port}=    Convert To Integer    ${PORT}
     ${expected}=    Create Dictionary    alias=info    host=${BROKER}
-    ...    port=${{int($PORT)}}    client_id=${CLIENT}    protocol=MQTTv311
+    ...    port=${port}    client_id=${CLIENT}    protocol=MQTTv311
     ...    keepalive=${30}    connected=${True}
     Dictionaries Should Be Equal    ${info}    ${expected}
 
@@ -37,6 +39,19 @@ Get Connection Info without a connection fails
     Run Keyword And Expect Error
     ...    No connection with alias 'default'. Use Connect first.
     ...    Get Connection Info
+
+Connections without a client id do not share one
+    [Documentation]    With no client id the broker assigns a distinct one to
+    ...    each connection, so neither takes over the other's session.
+    Connect    ${BROKER}    ${PORT}    client_id=${None}    alias=one
+    Connect    ${BROKER}    ${PORT}    client_id=${None}    alias=two
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=one
+    Publish    ${TOPIC}    hello    qos=1    alias=two
+    Listen Should Return    ${TOPIC}    hello    alias=one
+    ${one}=    Get Connection Info    one
+    ${two}=    Get Connection Info    two
+    Should Be True    ${one}[connected] and ${two}[connected]
+    Should Be Empty    ${one}[client_id]
 
 Connect returns nothing
     ${result}=    Connect    ${BROKER}    ${PORT}
