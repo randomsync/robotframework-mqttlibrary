@@ -9,6 +9,13 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+### Added
+
+- The keyword documentation starts with a note for 0.7 users, linking to
+  the 0.7.2 documentation, now published at
+  https://randomsync.github.io/robotframework-mqttlibrary/0.7/, and to the
+  migration notes.
+
 ## [1.0.0rc1] - 2026-09-27
 
 The first release on paho-mqtt 2. Connections now stay alive between

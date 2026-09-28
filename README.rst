@@ -88,7 +88,7 @@ Use named connections to subscribe and publish in one test. Messages are queued 
         [Teardown]      Disconnect All
 
 
-Keyword documentation is available at: http://randomsync.github.io/robotframework-mqttlibrary.
+Keyword documentation is available at https://randomsync.github.io/robotframework-mqttlibrary/. For 0.7.2, the last release for paho-mqtt 1, see https://randomsync.github.io/robotframework-mqttlibrary/0.7/.
 
 Also look at the ``tests/acceptance`` folder for examples.
 
