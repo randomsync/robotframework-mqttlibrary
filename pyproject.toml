@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-    "robotframework>=4",
+    "robotframework>=4.1",
     "paho-mqtt>=2.1,<3",
 ]
 

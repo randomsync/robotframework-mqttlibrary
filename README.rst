@@ -21,18 +21,21 @@ MQTTLibrary can be installed using `pip <https://pip.pypa.io>`__::
 
     pip install robotframework-mqttlibrary
 
-To try the 1.0 release candidate, allow pre-releases::
+To try the 1.0 release candidate, ask for it by version, so that pip does
+not also pick pre-releases of the dependencies::
 
-    pip install --pre robotframework-mqttlibrary
+    pip install robotframework-mqttlibrary==1.0.0rc1
 
 Supported versions:
 
 =============  ==========  ===============  ============
 MQTTLibrary    Python      Robot Framework  paho-mqtt
 =============  ==========  ===============  ============
-1.0            3.9 - 3.14  4.1 - 7          2.1 - 2.x
+1.0            3.9 - 3.14  4.1 and later    2.1 - 2.x
 0.7.2          3           not pinned       1.3 - 1.x
 =============  ==========  ===============  ============
+
+1.0 is tested with Robot Framework 4.1.3 and the latest 7.x.
 
 1.0 changes some keyword behaviour. See "Migrating from 0.7" in the `changelog <https://github.com/randomsync/robotframework-mqttlibrary/blob/master/CHANGELOG.md>`__ before upgrading.
 
