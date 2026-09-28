@@ -175,9 +175,11 @@ connections that stay alive between keywords.
    (`a/#` and `a/1`) both receive a message, and means Listen never drops
    anything. One lock per connection guards the filter registry, since
    keywords change it while the network thread reads it. Subscribing again
-   to an existing filter keeps its queue.
+   to an existing filter keeps its queue. Queues are bounded, and duplicate
+   copies for overlapping filters are dropped (section 8, rows 4 and 5).
 6. **Errors carry the broker's reason**, for example
-   `Connection to 127.0.0.1:11883 failed: Not authorized`.
+   `Connection to 127.0.0.1:11883 failed: Not authorized` (section 8,
+   rows 6 and 7).
 7. **Named connections.** `Connect ... alias=`, `Switch Connection`,
    `Disconnect All`, and an `alias=` argument on connection-bound keywords.
    Connecting again on an alias that is still connected disconnects the old
@@ -276,7 +278,7 @@ Sleep, two named connections in one test, and the new `limit` behaviour.
 GitHub Actions on Linux runners:
 
 - **lint:** ruff, and a libdoc build that fails on docstring errors.
-- **test:** Python 3.9-3.14 with the latest Robot Framework and paho, plus a
+- **test:** Python 3.9-3.14 with the latest Robot Framework 7 and paho, plus a
   minimum-versions leg (Robot Framework 4.1, paho 2.1.0). Brokers from
   `docker compose up --wait`. Robot logs uploaded on every run. Combined
   coverage of at least 90%.
@@ -302,7 +304,32 @@ A `Makefile` gives the same steps locally: `make brokers`, `make test`,
 9. 1.1 features: Connect options, then messages, then assertions.
 10. `1.1.0`.
 
-## 8. Credits
+## 8. Deviations from the plan
+
+Where the work differs from this document or from the roadmap issues, the
+row below records what was planned, what shipped, and why. The sections above
+are updated to match where they would otherwise mislead. Every phase PR that
+deviates from the plan adds its rows here in the same PR, the way it adds
+CHANGELOG entries.
+
+| # | Planned | Done instead | Why | PR |
+|---|---------|--------------|-----|----|
+| 1 | `paho-mqtt>=2.0,<3`; CI leg on paho 2.0.0 | `paho-mqtt>=2.1,<3`; the lower-bound and minimum legs use 2.1.0 | In 2.0.0 `Client.protocol` recurses forever, and `loop_stop()` is the only place that clears the network thread reference | #55 |
+| 2 | Phase 5 changes no error text | `Publish Single` / `Publish Multiple` report paho 2's reason (`Not authorized`) instead of paho 1's (`Connection Refused: not authorised.`) | The text comes from paho's `publish` module, not from this library; recorded as breaking in the CHANGELOG | #55 |
+| 3 | Phase 6 removes the `Connect` return value | Removed in phase 7, together with `Get Connection Info` | `connect.robot` read `_client_id` from the returned client; the value and its replacement went in the same PR | #56, #57 |
+| 4 | Every message goes into every matching filter's queue (4.1 item 5) | The first copy goes into every matching queue; identical copies that directly follow it are dropped | Mosquitto sends one copy per matching subscription, so overlapping filters got duplicates. On a broker that sends a single copy, the second of two identical messages published back to back to such a topic is lost. The clean fix is MQTT v5 subscription identifiers (1.2) | #56 |
+| 5 | Bounded per-filter queues, size unspecified | 10,000 messages per queue, including the unclaimed one; the oldest are dropped, and the next read warns | Keeps a busy `#` subscription from growing without limit | #56 |
+| 6 | `Listen` returns what arrived within the timeout | `Listen` also fails when the connection is lost and nothing is queued, and fails on a non-UTF-8 payload, dropping only that message. `Subscribe And Validate` appends the loss reason to its unchanged error text. `Subscribe` fails if SUBACK does not arrive within the loop timeout | A lost connection or a stuck message would otherwise look like "no messages" forever | #56 |
+| 7 | Errors carry the broker's reason (4.1 item 6) | `Connect` uses `Connection to <host>:<port> failed: <reason>`; `Disconnect` keeps the 0.7 prefix: `The client disconnected unexpectedly: <reason>` | Existing `Run Keyword And Expect Error` patterns on Disconnect keep matching | #56 |
+| 8 | Use paho's threaded interface | The library stops the network thread itself (sets paho's `_thread_terminate`, joins with the loop timeout) instead of calling `loop_stop()`, and reads `client._thread` and `client._client_id` | `loop_stop()` joins without a timeout and can raise if the thread ends by itself; paho 2.1 has no public client id accessor. The latest CI legs catch changes to these paho 2.1 internals | #56, #57 |
+| 9 | Type hints on every keyword argument | As planned, except payloads are annotated `Any`, `tls` accepts `dict` or `ssl.SSLContext`, `client_id` accepts `${None}`, and timeouts are `timedelta` with string defaults (`1 second`) | With `str` in the payload type, Robot Framework published a dict as its repr; paho's `tls` also takes an SSL context; `client_id=${None}` otherwise became the id `"None"` | #57 |
+| 10 | paho logs through a handler that forwards to `robot.api.logger` | `enable_logger()` to the `MQTTLibrary.paho` logger, no custom handler | Robot Framework already shows Python `logging` in its log. Messages from the network thread are dropped, as for any non-main thread | #57 |
+| 11 | Suites use `RETURN` | No `RETURN` or `[Return]`: shared keywords assert instead of returning, and no `Evaluate` uses `$var` syntax | `RETURN` needs Robot Framework 5 and the minimum leg is 4.1.3; RF 4.1 cannot parse `$var` in `Evaluate` on Python 3.12 and later | #57 |
+| 12 | Broker variables include `MQTT_WS_PORT` | Dropped | No suite uses websockets until 1.1 (#48) | #57 |
+| 13 | Latest legs use the latest Robot Framework; tools unpinned | Latest legs install `robotframework<8`; ruff is pinned in the `dev` extra | A new major release or formatter style would turn every PR red; moving to them is a deliberate change | #57 |
+| 14 | Unique topic from the test name and an epoch | Test name plus a random suffix; the keyword also sets a matching `${CLIENT}` | Two tests started in the same second would otherwise share a topic | #57 |
+
+## 9. Credits
 
 This plan builds on work proposed in PRs #36 (paho 2 migration), #35 (an
 earlier paho 2 attempt), #27 (moving to a background loop), #26 (websockets
