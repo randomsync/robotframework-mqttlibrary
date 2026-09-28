@@ -9,10 +9,81 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+## [1.0.0rc1] - 2026-09-27
+
+The first release on paho-mqtt 2. Connections now stay alive between
+keywords, messages are queued from the moment of `Connect` instead of being
+lost between keywords, and several connections can be open at once.
+This is a release candidate: install it with
+`pip install robotframework-mqttlibrary==1.0.0rc1`. A plain
+`pip install robotframework-mqttlibrary`, or a `~=0.7` requirement, still
+installs 0.7.2.
+
+### Migrating from 0.7
+
+- **Requirements.** Python 3.9 or later, Robot Framework 4.1 or later, and
+  paho-mqtt 2.1 or later below 3. Stay on 0.7.2 if you need paho-mqtt 1.x.
+- **`Connect` returns nothing.** Replace `${mqttc._client_id}` and similar
+  with `Get Connection Info`, for example `${info}=  Get Connection Info`
+  and `${info}[client_id]`. The client id there is a string; 0.7's
+  `_client_id` was bytes, so drop any `.decode()` or `b'...'` comparison.
+- **Name your connections.** 0.7 left a connection running when `Connect`
+  was called again, and some suites relied on those leaked connections, for
+  example to subscribe with one client and publish with another. Give each
+  one an `alias=` and pass it to the other keywords; use `Disconnect All` in
+  teardown. Connecting again on a connected alias now disconnects the old
+  connection with a warning.
+- **Messages are kept until you read them.** Each connection queues the
+  messages for each subscription filter from `Connect` on, including the
+  ones a persistent session (`clean_session=${False}`) delivers before
+  `Subscribe`. Subscribing again to the same filter keeps its queue; 0.7
+  started a new list on every `Subscribe`. A suite that subscribes several
+  times on one connection, or reconnects a persistent session, can now get
+  messages left over from earlier steps.
+- **`limit` returns the oldest messages and keeps the rest.** `Subscribe`
+  (with a timeout) and `Listen` return the oldest messages first; the rest
+  stay queued for the next `Listen` on the same connection. 0.7's `Listen`
+  returned the newest and dropped the others, and messages beyond `limit`
+  stayed unread on the broker for a later session. Now every delivered
+  message is read and acknowledged.
+- **Async `Subscribe` returns an empty list.** With `timeout=0`, 0.7
+  returned a list that kept filling in the background. Use `Listen` to read
+  the messages.
+- **`Subscribe And Validate` reads the same queue.** It matches only
+  messages for its own filter, including ones already queued, and consumes
+  the messages that do not match, so a later `Listen` does not see them.
+- **Update expected error messages.** Errors now carry the reason, and an
+  exact `Run Keyword And Expect Error` pattern may stop matching; a glob
+  such as `*Not authorized*` is safer:
+  - `Connect`: `Connection to 127.0.0.1:11883 failed: Not authorized`,
+    instead of `The client disconnected unexpectedly`.
+  - `Disconnect` on a dropped connection:
+    `The client disconnected unexpectedly: <reason>`.
+  - `Publish`: `Publish to <topic> failed: MQTT_ERR_NO_CONN`, instead of
+    `Error publishing: 4`.
+  - `Subscribe And Validate`: the same text, with
+    ` (connection lost: <reason>)` appended when the connection drops.
+  - `Publish Single` and `Publish Multiple`: paho 2's reason text, for
+    example `Not authorized` instead of `Connection Refused: not authorised.`
+- **Keywords fail where 0.7 carried on.** `Publish` fails if the message is
+  not acknowledged, `Subscribe` fails if the broker refuses or does not
+  acknowledge the subscription, and `Listen` fails if the connection is
+  lost and nothing is queued, or on a payload that is not valid UTF-8.
+- **Overlapping subscriptions and large queues.** With filters such as
+  `a/#` and `a/1` on one connection, each filter gets each message once,
+  although Mosquitto sends a copy per subscription. On a broker that sends a
+  single copy, the second of two identical messages published back to back
+  to such a topic is lost. Each queue holds up to 10000 messages; beyond
+  that the oldest are dropped with a warning.
+- **Arguments are converted from type hints.** An invalid value such as
+  `qos=high` fails before the keyword runs. Python code that calls the
+  keywords directly must pass numbers and booleans, not strings.
+
 ### Added
 
 - Pushing a version tag publishes the release from CI: the tag must match
-  `version.py`, `docs/index.html` must match the code, and the notes come
+  `version.py` and be on master, `docs/index.html` must match the code, and
+  the notes come
   from this file's section for the version. Packages go to PyPI through
   trusted publishing, with no stored token, and to a GitHub Release ([#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)).
 - `Get Connection Info` returns a connection's alias, host, port, client
@@ -132,10 +203,8 @@ Progress towards the next releases is tracked in
 ### Removed
 
 - The Travis CI configuration and badge, since travis-ci.org has shut down.
-  That configuration also published tagged releases to PyPI, which stopped
-  working when Travis shut down. Until a GitHub Actions release workflow
-  lands ([#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)), releases are built and uploaded by hand, starting
-  with 0.7.2 ([#42](https://github.com/randomsync/robotframework-mqttlibrary/issues/42)). Pushing a tag does not publish anything.
+  Its tag-triggered PyPI upload is replaced by the release jobs in GitHub
+  Actions ([#41](https://github.com/randomsync/robotframework-mqttlibrary/issues/41), [#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)).
 
 ## [0.7.2] - 2026-09-26
 
@@ -158,6 +227,7 @@ Released from the `0.7.x` branch for suites that need paho-mqtt 1.x.
 
 - Tests use local brokers instead of a public broker ([#22](https://github.com/randomsync/robotframework-mqttlibrary/pull/22)).
 
-[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...HEAD
+[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0rc1...HEAD
+[1.0.0rc1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.2...1.0.0rc1
 [0.7.2]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.0...0.7.1

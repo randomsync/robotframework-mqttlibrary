@@ -212,7 +212,7 @@ connections that stay alive between keywords.
 ### 4.3 Packaging
 
 `pyproject.toml` with hatchling, `requires-python = ">=3.9"`,
-`paho-mqtt>=2.1,<3`, `robotframework>=4`. `setup.py`, `MANIFEST.in` and
+`paho-mqtt>=2.1,<3`, `robotframework>=4.1`. `setup.py`, `MANIFEST.in` and
 `requirements.txt` are removed; development dependencies move to a `dev`
 extra.
 
@@ -336,6 +336,7 @@ CHANGELOG entries.
 | 16 | The docs check normalizes `generated` and `source` in both HTML files and diffs them | It compares the library data libdoc embeds, ignoring `generated` and `source` at every level. The Robot Framework that generates and checks the docs is pinned in a `docs` extra (7.5), used by `make docs`, the `lint` job and `release-checks`. Release PRs run the check in `lint`, before a tag exists | The surrounding HTML and the embedded data both change between Robot Framework releases, so an unpinned check would fail on an RF upgrade with no change to the docs | #59 |
 | 17 | Show the docs check failing on a throwaway tag | Shown by running `.github/check_docs.py` on a stale and on a fresh file | A throwaway tag whose docs happen to be current would publish to PyPI; the tag check now also stops tags that do not match `version.py` | #59 |
 | 18 | Trusted publishing, with no further protection | The trusted publisher is bound to `ci.yml` and the `pypi` environment. Because `ci.yml` also runs for branches and pull requests, the owner restricts the `pypi` environment to release tags (and may require a reviewer), and a tag ruleset restricts who can create version tags. `release-checks` also requires the tagged commit to be on master. The publish action is pinned to a commit, and Dependabot updates the actions | Without the environment restriction, anyone with write access could add a job using the `pypi` environment on a branch, and PyPI would accept its upload | #59 |
+| 19 | `robotframework>=4` | `robotframework>=4.1` | 4.1 is the oldest version CI tests (4.1.3); 4.0 was never run | #60 |
 
 ## 9. Credits
 
