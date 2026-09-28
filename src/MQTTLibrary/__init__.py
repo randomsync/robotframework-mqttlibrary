@@ -12,6 +12,12 @@ class MQTTLibrary(MQTTKeywords):
     This library uses the Eclipse Paho Python client, see
     https://eclipse.dev/paho/files/paho.mqtt.python/html/index.html.
 
+    *This documents MQTTLibrary 1.0 and later, which needs paho-mqtt 2.* If
+    ``pip show robotframework-mqttlibrary`` reports 0.7.x, use the
+    [https://randomsync.github.io/robotframework-mqttlibrary/0.7/|0.7.2
+    documentation] instead. To upgrade, see "Migrating from 0.7" in the
+    [https://github.com/randomsync/robotframework-mqttlibrary/blob/master/CHANGELOG.md|changelog].
+
     = Connections =
 
     `Connect` opens a connection and `Disconnect` closes it. In between, a

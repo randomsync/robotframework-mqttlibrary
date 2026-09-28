@@ -337,6 +337,7 @@ CHANGELOG entries.
 | 17 | Show the docs check failing on a throwaway tag | Shown by running `.github/check_docs.py` on a stale and on a fresh file | A throwaway tag whose docs happen to be current would publish to PyPI; the tag check now also stops tags that do not match `version.py` | #59 |
 | 18 | Trusted publishing, with no further protection | The trusted publisher is bound to `ci.yml` and the `pypi` environment. Because `ci.yml` also runs for branches and pull requests, the owner restricts the `pypi` environment to release tags (and may require a reviewer), and a tag ruleset restricts who can create version tags. `release-checks` also requires the tagged commit to be on master. The publish action is pinned to a commit, and Dependabot updates the actions | Without the environment restriction, anyone with write access could add a job using the `pypi` environment on a branch, and PyPI would accept its upload | #59 |
 | 19 | `robotframework>=4` | `robotframework>=4.1` | 4.1 is the oldest version CI tests (4.1.3); 4.0 was never run | #60 |
+| 20 | `docs/index.html` is regenerated only in release PRs | Regenerated once between 1.0.0rc1 and 1.0.0, for a docstring-only change: the library intro now tells 0.7 users where their docs are. The 0.7.2 docs are generated from the released package and published under `docs/0.7/` | GitHub Pages serves `master/docs`, so the site showed 1.0 docs while `pip install` still gave 0.7.2 | #62 |
 
 ## 9. Credits
 
