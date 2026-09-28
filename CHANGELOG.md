@@ -11,6 +11,10 @@ Progress towards the next releases is tracked in
 
 ### Added
 
+- Pushing a version tag publishes the release from CI: the tag must match
+  `version.py`, `docs/index.html` must match the code, and the notes come
+  from this file's section for the version. Packages go to PyPI through
+  trusted publishing, with no stored token, and to a GitHub Release ([#47](https://github.com/randomsync/robotframework-mqttlibrary/issues/47)).
 - `Get Connection Info` returns a connection's alias, host, port, client
   id, protocol, keepalive and whether it is still connected ([#46](https://github.com/randomsync/robotframework-mqttlibrary/issues/46)).
 - Type hints on every keyword argument, so Robot Framework converts

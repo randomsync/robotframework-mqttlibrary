@@ -43,6 +43,13 @@ dev = [
     "twine",
 ]
 
+# The Robot Framework that generates docs/index.html. libdoc's output changes
+# between Robot Framework releases, so `make docs` and the docs check in CI
+# both use this version. Bump it on purpose and regenerate the docs.
+docs = [
+    "robotframework==7.5",
+]
+
 [project.urls]
 Homepage = "https://github.com/randomsync/robotframework-mqttlibrary"
 Documentation = "https://randomsync.github.io/robotframework-mqttlibrary/"

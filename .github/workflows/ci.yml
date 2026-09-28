@@ -3,16 +3,20 @@ name: CI
 on:
   push:
     branches: [master]
+    # Release tags are bare versions, for example 1.0.0rc1 or 1.0.0.
+    tags: ["[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A newer push to a pull request cancels its older run. Other events get a
-# group per commit, so no run on master is ever cancelled or skipped.
+# A newer push to a pull request cancels its older run. Tags get a group per
+# event and tag, so a manual run on a tag cannot displace a pending release
+# run. Other events get a group per commit, so no run on master is ever
+# cancelled or skipped.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ci-${{ github.event_name }}-${{ (github.event_name == 'pull_request' || github.ref_type == 'tag') && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -28,9 +32,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      # The dev extra pins ruff.
+      # The dev extra pins ruff; the docs extra pins the Robot Framework that
+      # generates docs/index.html.
       - name: Install
-        run: python -m pip install ".[dev]"
+        run: python -m pip install ".[dev,docs]"
 
       - name: Ruff
         run: |
@@ -40,6 +45,21 @@ jobs:
       # Fails on docstring errors.
       - name: Build the keyword documentation
         run: python -m robot.libdoc MQTTLibrary "$RUNNER_TEMP/MQTTLibrary.html"
+
+      # docs/index.html documents the released version, so it is regenerated
+      # in release PRs only: the PRs that change version.py. Checking it
+      # there finds stale docs before a tag is pushed.
+      - name: Check docs/index.html in release PRs
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          if git diff --quiet FETCH_HEAD HEAD -- src/MQTTLibrary/version.py; then
+            echo "version.py is unchanged, so this is not a release PR"
+          else
+            python .github/check_docs.py docs/index.html
+          fi
 
       # Syntax errors fail the run; deprecation and other warnings fail the
       # step.
@@ -181,3 +201,116 @@ jobs:
       - name: Stop test brokers
         if: always()
         run: docker compose down
+
+  # Release jobs run only when a tag is pushed, not for a manual run on a tag.
+  # The checks run next to the tests, so a wrong tag, a tag that is not on
+  # master, stale docs or a missing CHANGELOG section fail early and nothing
+  # is published.
+  #
+  # If github-release fails after publish succeeded, use "Re-run failed
+  # jobs", not "Re-run all jobs": a full re-run rebuilds the packages, and
+  # PyPI rejects files that were already uploaded.
+  release-checks:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      # Full history, to check that the tagged commit is on master.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      # With the docs extra, which pins the Robot Framework that generated
+      # docs/index.html.
+      - name: Install the wheel
+        run: |
+          wheels=(dist/*.whl)
+          python -m pip install "${wheels[0]}[docs]" packaging
+
+      - name: Check the tag matches version.py
+        id: tag
+        run: python .github/release.py check "$GITHUB_REF_NAME"
+
+      - name: Check the tagged commit is on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on master"
+            exit 1
+          fi
+
+      - name: Check docs/index.html is current
+        run: python .github/check_docs.py docs/index.html
+
+      - name: Extract the release notes from CHANGELOG.md
+        run: python .github/release.py notes "$GITHUB_REF_NAME" > release-notes.md
+
+      - name: Upload the release notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  # PyPI trusted publishing: PyPI accepts uploads from this workflow file
+  # (ci.yml) running in the pypi environment, so no API token is stored.
+  # This file also runs for branches and pull requests, so the pypi
+  # environment must only allow release tags (repository settings); that,
+  # not this job's conditions, is what keeps another job from publishing.
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [lint, build, test, release-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/robotframework-mqttlibrary/${{ github.ref_name }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      # Pinned to a commit, since this job holds id-token: write.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+
+  github-release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [publish, release-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-notes
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.release-checks.outputs.prerelease }}
+        run: |
+          flags=(--verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md)
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" "${flags[@]}"
