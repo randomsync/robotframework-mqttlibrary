@@ -16,6 +16,42 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # The dev extra pins ruff.
+      - name: Install
+        run: python -m pip install ".[dev]"
+
+      - name: Ruff
+        run: |
+          ruff check --output-format=github .
+          ruff format --check .
+
+      # Fails on docstring errors.
+      - name: Build the keyword documentation
+        run: python -m robot.libdoc MQTTLibrary "$RUNNER_TEMP/MQTTLibrary.html"
+
+      # Syntax errors fail the run; deprecation and other warnings fail the
+      # step.
+      - name: Dry-run the acceptance suites
+        run: |
+          set -o pipefail
+          python -m robot --dryrun --output NONE --report NONE --log NONE tests/acceptance 2>&1 | tee "$RUNNER_TEMP/dryrun.txt"
+          if grep -q '\[ WARN \]' "$RUNNER_TEMP/dryrun.txt"; then
+            echo "::error::robot --dryrun printed warnings"
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -56,16 +92,22 @@ jobs:
   # Tests run against the wheel the build job checked, the same file a release
   # would publish.
   test:
-    name: test (paho-mqtt ${{ matrix.paho }})
+    name: test (py${{ matrix.python }}, ${{ matrix.versions }})
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        # "latest" resolves from the wheel's declared range. The other leg is
-        # its lower bound, so keep it in step with pyproject.toml.
-        paho: [latest, "2.1.0"]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        versions: [latest]
+        # The oldest supported versions. Keep them in step with
+        # requires-python and the dependency floors in pyproject.toml.
+        include:
+          - python: "3.9"
+            versions: minimum
+            robotframework: "4.1.3"
+            paho: "2.1.0"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -73,7 +115,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
 
       # Created first so the broker logs and versions can be saved even when
       # an early step fails.
@@ -85,16 +127,23 @@ jobs:
           name: dist
           path: dist/
 
-      # Robot Framework is pinned to 7.x so a new major release cannot turn
-      # the tests red. The latest leg takes paho-mqtt from the wheel's declared
-      # range. The pinned leg resolves it in the same install, so it is never
-      # upgraded or downgraded afterwards.
+      # The latest legs take the newest Robot Framework 7 and the newest
+      # paho-mqtt in the wheel's range. Robot Framework stays below 8 so a new
+      # major release cannot turn every PR red; supporting it is a deliberate
+      # change. The minimum leg pins both in the same install, so they are
+      # never upgraded or downgraded afterwards.
       - name: Install the wheel
         env:
+          ROBOTFRAMEWORK: ${{ matrix.robotframework }}
           PAHO: ${{ matrix.paho }}
         run: |
-          reqs=(dist/*.whl "robotframework~=7.0" coverage pytest)
-          if [ "$PAHO" != latest ]; then reqs+=("paho-mqtt==$PAHO"); fi
+          reqs=(dist/*.whl coverage pytest)
+          if [ -n "$ROBOTFRAMEWORK" ]; then
+            reqs+=("robotframework==$ROBOTFRAMEWORK")
+          else
+            reqs+=("robotframework<8")
+          fi
+          if [ -n "$PAHO" ]; then reqs+=("paho-mqtt==$PAHO"); fi
           python -m pip install "${reqs[@]}"
           python -m pip check
           python -m pip freeze > results/pip-freeze.txt
@@ -125,7 +174,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: robot-results-paho-${{ matrix.paho }}
+          name: robot-results-py${{ matrix.python }}-${{ matrix.versions }}
           path: results/
           if-no-files-found: error
 

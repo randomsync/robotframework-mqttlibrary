@@ -12,6 +12,7 @@ deadlock.
 """
 
 import collections
+import logging
 import re
 import threading
 import time
@@ -25,6 +26,11 @@ from robot.api import logger
 # messages the broker delivers between CONNACK and SUBSCRIBE, until a
 # Subscribe claims them.
 QUEUE_LIMIT = 10000
+
+# paho logs here. Robot Framework shows Python logging in its log at the
+# matching level, so paho's messages appear with --loglevel DEBUG. Messages
+# from the network thread are dropped, as for any non-main thread.
+PAHO_LOGGER = logging.getLogger("MQTTLibrary.paho")
 
 # How long a late SUBACK or UNSUBACK for an operation that timed out is
 # recognised and discarded. After that the mid is free again, so an
@@ -47,15 +53,25 @@ class _Queue(collections.deque):
 
 
 class _Connection(object):
-
-    def __init__(self, alias, host, port, client_id, clean_session,
-                 keepalive, timeout, username=None, password=None):
+    def __init__(
+        self,
+        alias,
+        host,
+        port,
+        client_id,
+        clean_session,
+        keepalive,
+        timeout,
+        username=None,
+        password=None,
+    ):
         self.alias = alias
         self.host = host
         self.port = port
+        self.protocol = mqtt.MQTTv311
         self.keepalive = keepalive
         self.timeout = timeout
-        self.address = '%s:%s' % (host, port)
+        self.address = "%s:%s" % (host, port)
 
         self._cond = threading.Condition()
         self._filters = {}
@@ -76,8 +92,10 @@ class _Connection(object):
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=client_id,
             clean_session=clean_session,
+            protocol=self.protocol,
             reconnect_on_failure=False,
         )
+        self.client.enable_logger(PAHO_LOGGER)
         # Bounds the TCP connect in client.connect(), so an unreachable host
         # fails within the same timeout as everything else.
         self.client.connect_timeout = timeout
@@ -94,10 +112,26 @@ class _Connection(object):
 
     @property
     def _connected(self):
-        return (self._connack is not None and not self._connack.is_failure
-                and self._disconnect_reason is None)
+        return (
+            self._connack is not None
+            and not self._connack.is_failure
+            and self._disconnect_reason is None
+        )
 
     # Keyword-side operations, called from Robot Framework's thread.
+
+    def info(self):
+        return {
+            "alias": self.alias,
+            "host": self.host,
+            "port": self.port,
+            # What paho sends, not the argument: paho has no public
+            # accessor for it in 2.1.
+            "client_id": self.client._client_id.decode(),
+            "protocol": self.protocol.name,
+            "keepalive": self.keepalive,
+            "connected": self._connected,
+        }
 
     def open(self):
         """Connect, start the network loop and wait for CONNACK."""
@@ -107,16 +141,19 @@ class _Connection(object):
             # OSError covers refused, unreachable and unresolvable hosts.
             # UnicodeError comes from the IDNA encoding of a malformed name
             # such as 172..0.0.1.
-            raise RuntimeError('Connection to %s failed: %s'
-                               % (self.address, exc)) from None
+            raise RuntimeError(
+                "Connection to %s failed: %s" % (self.address, exc)
+            ) from None
         self.client.loop_start()
         self._thread = self.client._thread
 
         with self._cond:
             self._cond.wait_for(
-                lambda: (self._connack is not None
-                         or self._disconnect_reason is not None),
-                self.timeout)
+                lambda: (
+                    self._connack is not None or self._disconnect_reason is not None
+                ),
+                self.timeout,
+            )
             if self._connected:
                 return
             connack = self._connack
@@ -129,16 +166,17 @@ class _Connection(object):
             # With MQTT 3.1.1 and reconnect_on_failure=False, paho does not
             # report CONNACK codes 1 (unacceptable protocol version) and 2
             # (identifier rejected); it closes the connection instead.
-            reason = ('the broker closed the connection without accepting '
-                      'it (%s). It may have rejected the protocol version or '
-                      'the client id' % reason)
+            reason = (
+                "the broker closed the connection without accepting "
+                "it (%s). It may have rejected the protocol version or "
+                "the client id" % reason
+            )
         else:
-            reason = 'no CONNACK within %s seconds' % self.timeout
+            reason = "no CONNACK within %s seconds" % self.timeout
         # Closes the socket if it is still open, for example after a timeout.
         self.client.disconnect()
         self._stop()
-        raise RuntimeError('Connection to %s failed: %s'
-                           % (self.address, reason))
+        raise RuntimeError("Connection to %s failed: %s" % (self.address, reason))
 
     def close(self):
         """Disconnect and stop the network loop.
@@ -152,25 +190,27 @@ class _Connection(object):
             self.client.disconnect()
             with self._cond:
                 confirmed = self._cond.wait_for(
-                    lambda: self._disconnect_reason is not None,
-                    self.timeout)
+                    lambda: self._disconnect_reason is not None, self.timeout
+                )
         stopped = self._stop()
         reason = self._disconnect_reason
         if reason is not None and reason.is_failure:
-            raise RuntimeError('The client disconnected unexpectedly: %s'
-                               % reason)
+            raise RuntimeError("The client disconnected unexpectedly: %s" % reason)
         return confirmed and stopped
 
     def publish(self, topic, payload, qos, retain):
         info = self.client.publish(topic, payload, qos, retain)
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
-            raise RuntimeError('Publish to %s failed: %s%s'
-                               % (topic, _error_name(info.rc), self._lost()))
+            raise RuntimeError(
+                "Publish to %s failed: %s%s"
+                % (topic, _error_name(info.rc), self._lost())
+            )
         info.wait_for_publish(self.timeout)
         if not info.is_published():
-            raise RuntimeError('Publish to %s not acknowledged within %s '
-                               'seconds%s' % (topic, self.timeout,
-                                              self._lost()))
+            raise RuntimeError(
+                "Publish to %s not acknowledged within %s "
+                "seconds%s" % (topic, self.timeout, self._lost())
+            )
 
     def subscribe(self, topic, qos):
         """Register ``topic`` as a filter, subscribe and wait for SUBACK."""
@@ -178,17 +218,19 @@ class _Connection(object):
         try:
             rc, mid = self.client.subscribe(topic, qos)
             if rc != mqtt.MQTT_ERR_SUCCESS:
-                raise RuntimeError('Subscribe to %s failed: %s%s'
-                                   % (topic, _error_name(rc), self._lost()))
+                raise RuntimeError(
+                    "Subscribe to %s failed: %s%s"
+                    % (topic, _error_name(rc), self._lost())
+                )
             codes = self._wait_ack(mid)
             if codes is None:
-                raise RuntimeError('Subscribe to %s not acknowledged within '
-                                   '%s seconds%s'
-                                   % (topic, self.timeout, self._lost()))
+                raise RuntimeError(
+                    "Subscribe to %s not acknowledged within "
+                    "%s seconds%s" % (topic, self.timeout, self._lost())
+                )
             failures = [code for code in codes if code.is_failure]
             if failures:
-                raise RuntimeError('Subscribe to %s failed: %s'
-                                   % (topic, failures[0]))
+                raise RuntimeError("Subscribe to %s failed: %s" % (topic, failures[0]))
         except Exception:
             if created:
                 # Keeps what register() took from the unclaimed queue, so a
@@ -204,8 +246,10 @@ class _Connection(object):
         try:
             rc, mid = self.client.unsubscribe(topic)
             if rc != mqtt.MQTT_ERR_SUCCESS:
-                raise RuntimeError('Unsubscribe from %s failed: %s%s'
-                                   % (topic, _error_name(rc), self._lost()))
+                raise RuntimeError(
+                    "Unsubscribe from %s failed: %s%s"
+                    % (topic, _error_name(rc), self._lost())
+                )
             return self._wait_ack(mid) is not None
         finally:
             self.unregister(topic)
@@ -222,18 +266,17 @@ class _Connection(object):
             queue = self._filters.get(topic)
             if queue is None:
                 return None
+
             def lost():
                 return self._disconnect_reason is not None
 
             if limit > 0:
-                self._cond.wait_for(lambda: len(queue) >= limit or lost(),
-                                    timeout)
+                self._cond.wait_for(lambda: len(queue) >= limit or lost(), timeout)
             else:
                 self._cond.wait_for(lost, timeout)
             self._warn_dropped(topic, queue)
             if not queue and lost():
-                raise RuntimeError('Listen on %s failed%s'
-                                   % (topic, self._lost()))
+                raise RuntimeError("Listen on %s failed%s" % (topic, self._lost()))
             count = len(queue) if limit == 0 else min(limit, len(queue))
             # Decode before taking, so an undecodable message does not take
             # the good ones with it.
@@ -243,9 +286,10 @@ class _Connection(object):
                     messages.append(_decode(queue[index]))
                 except UnicodeDecodeError as exc:
                     del queue[index]
-                    raise RuntimeError('Dropped a message on %s that is not '
-                                       'valid UTF-8: %s' % (topic, exc)) \
-                        from None
+                    raise RuntimeError(
+                        "Dropped a message on %s that is not "
+                        "valid UTF-8: %s" % (topic, exc)
+                    ) from None
             for _ in range(count):
                 queue.popleft()
             return messages
@@ -271,8 +315,10 @@ class _Connection(object):
                     if re.match(pattern, payload):
                         return True
                 if self._disconnect_reason is not None:
-                    raise AssertionError("The expected payload didn't arrive "
-                                         "in the topic%s" % self._lost())
+                    raise AssertionError(
+                        "The expected payload didn't arrive "
+                        "in the topic%s" % self._lost()
+                    )
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return False
@@ -326,9 +372,9 @@ class _Connection(object):
         """
         with self._cond:
             self._cond.wait_for(
-                lambda: (mid in self._acks
-                         or self._disconnect_reason is not None),
-                self.timeout)
+                lambda: mid in self._acks or self._disconnect_reason is not None,
+                self.timeout,
+            )
             if mid not in self._acks:
                 # A late ack for this mid must not answer a later operation
                 # that reuses the mid.
@@ -338,16 +384,18 @@ class _Connection(object):
     def _warn_dropped(self, topic, queue):
         """Warn once about messages a full queue dropped. Holds the lock."""
         if queue.dropped:
-            where = 'on %s' % topic if topic else 'that matched no filter'
-            logger.warn('%d messages %s were dropped because more than %d '
-                        'were queued' % (queue.dropped, where, QUEUE_LIMIT))
+            where = "on %s" % topic if topic else "that matched no filter"
+            logger.warn(
+                "%d messages %s were dropped because more than %d "
+                "were queued" % (queue.dropped, where, QUEUE_LIMIT)
+            )
             queue.dropped = 0
 
     def _lost(self):
         reason = self._disconnect_reason
         if reason is None:
-            return ''
-        return ' (connection lost: %s)' % reason
+            return ""
+        return " (connection lost: %s)" % reason
 
     def _stop(self):
         """Stop the network loop and wait up to the timeout for its thread.
@@ -374,8 +422,7 @@ class _Connection(object):
             self._connack = reason_code
             self._cond.notify_all()
 
-    def _on_disconnect(self, client, userdata, flags, reason_code,
-                       properties):
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         with self._cond:
             self._disconnect_reason = reason_code
             self._cond.notify_all()
@@ -383,8 +430,10 @@ class _Connection(object):
     def _on_ack(self, client, userdata, mid, reason_codes, properties):
         with self._cond:
             abandoned = self._abandoned.pop(mid, None)
-            if (abandoned is not None and
-                    time.monotonic() - abandoned < ABANDONED_ACK_SECONDS):
+            if (
+                abandoned is not None
+                and time.monotonic() - abandoned < ABANDONED_ACK_SECONDS
+            ):
                 return
             self._acks[mid] = reason_codes
             self._cond.notify_all()
@@ -403,8 +452,11 @@ class _Connection(object):
                 if duplicates[1] > 1:
                     self._duplicates = (key, duplicates[1] - 1)
                 return
-            matched = [queue for topic, queue in self._filters.items()
-                       if mqtt.topic_matches_sub(topic, message.topic)]
+            matched = [
+                queue
+                for topic, queue in self._filters.items()
+                if mqtt.topic_matches_sub(topic, message.topic)
+            ]
             for queue in matched:
                 queue.put(message)
             if not matched:
@@ -415,7 +467,7 @@ class _Connection(object):
 
 
 def _decode(message):
-    return message.payload.decode('utf-8')
+    return message.payload.decode("utf-8")
 
 
 def _error_name(rc):

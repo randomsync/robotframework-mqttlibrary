@@ -37,7 +37,9 @@ dev = [
     "coverage",
     "pytest",
     "pytest-cov",
-    "ruff",
+    # Pinned so a new ruff release cannot change the lint result; bump it on
+    # purpose.
+    "ruff==0.16.9",
     "twine",
 ]
 
@@ -80,3 +82,14 @@ source = ["src/MQTTLibrary", "*/site-packages/MQTTLibrary"]
 [tool.coverage.report]
 fail_under = 90
 show_missing = true
+
+[tool.ruff]
+target-version = "py39"
+extend-exclude = ["venv"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import sorting and bugbear.
+select = ["E", "F", "W", "I", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["MQTTLibrary"]

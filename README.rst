@@ -84,18 +84,24 @@ Contributing
 
 The keywords in this library are based on some of the methods available in eclipse paho client library. If you'd like to add keywords, see instructions_ on creating/updating libraries for Robot Framework.
 
-There are two layers of tests. The unit tests in ``tests/unit`` use pytest and a fake paho client, so they need no broker::
+You need Python 3.9 or later and Docker Engine 25 or later. The ``Makefile`` runs the same steps as CI; the first target that needs Python creates ``venv`` with the package installed in editable mode::
 
-    pip install -e ".[dev]"
-    pytest tests/unit
+    make brokers    # start the test brokers from docker-compose.yml
+    make test       # unit and acceptance tests under coverage
+    make clean      # stop the brokers and remove test output
 
-The acceptance tests in ``tests/acceptance`` make use of Robot Framework itself. They need two local MQTT brokers: one without authentication, used by most tests, and one that requires a username and password. Both are defined in ``docker-compose.yml``. They need Docker Engine 25 or later. Start them, run the tests, and stop them when you are done::
+Other targets:
 
-    docker compose up --wait
-    robot tests/acceptance
-    docker compose down
+- ``make test-unit`` runs the unit tests in ``tests/unit``. They use pytest and a fake paho client, so they need no broker.
+- ``make test-acc`` runs the Robot Framework acceptance tests in ``tests/acceptance`` against the brokers: one without authentication, used by most tests, and one that requires a username and password.
+- ``make lint`` runs ruff, builds the keyword documentation and dry-runs the acceptance suites.
+- ``make docs`` regenerates ``docs/index.html``.
 
-CI runs both layers under coverage and requires at least 90% combined coverage (see ``[tool.coverage]`` in ``pyproject.toml``).
+CI requires at least 90% combined coverage (see ``[tool.coverage]`` in ``pyproject.toml``).
+
+The acceptance tests read the broker addresses from environment variables, so they can run against other brokers: ``MQTT_HOST`` (default ``127.0.0.1``), ``MQTT_PORT`` (``1883``) and ``MQTT_AUTH_PORT`` (``11883``). For example::
+
+    MQTT_HOST=192.168.1.10 make test-acc
 
 The test credentials live in ``mosquitto/passwd_file``. To regenerate it, run ``scripts/gen-passwd.sh``.
 

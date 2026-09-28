@@ -19,8 +19,8 @@ from MQTTLibrary import MQTTLibrary as Library
 
 # The package exports the MQTTKeywords class under the module's name, so
 # import the modules explicitly.
-connection = importlib.import_module('MQTTLibrary.connection')
-keywords = importlib.import_module('MQTTLibrary.MQTTKeywords')
+connection = importlib.import_module("MQTTLibrary.connection")
+keywords = importlib.import_module("MQTTLibrary.MQTTKeywords")
 
 
 def reason(packet_type, name):
@@ -28,7 +28,6 @@ def reason(packet_type, name):
 
 
 class FakeClient(object):
-
     instances = []
 
     def __init__(self, **kwargs):
@@ -37,15 +36,14 @@ class FakeClient(object):
         self.credentials = None
         self.connect_args = None
         self.connect_error = None
-        self.connack = reason(PacketTypes.CONNACK, 'Success')
-        self.suback = [reason(PacketTypes.SUBACK, 'Granted QoS 1')]
-        self.unsuback = [reason(PacketTypes.UNSUBACK, 'Success')]
+        self.connack = reason(PacketTypes.CONNACK, "Success")
+        self.suback = [reason(PacketTypes.SUBACK, "Granted QoS 1")]
+        self.unsuback = [reason(PacketTypes.UNSUBACK, "Success")]
         self.subscribe_rc = mqtt.MQTT_ERR_SUCCESS
         self.unsubscribe_rc = mqtt.MQTT_ERR_SUCCESS
         self.publish_rc = mqtt.MQTT_ERR_SUCCESS
         self.puback = True
-        self.disconnect_reason = reason(PacketTypes.DISCONNECT,
-                                        'Normal disconnection')
+        self.disconnect_reason = reason(PacketTypes.DISCONNECT, "Normal disconnection")
         self.loop_starts = 0
         self.stuck = False
         self._thread_terminate = False
@@ -53,7 +51,7 @@ class FakeClient(object):
         self.subscriptions = []
         self.unsubscriptions = []
         self.published = []
-        self._client_id = kwargs.get('client_id', '').encode()
+        self._client_id = kwargs.get("client_id", "").encode()
         self._thread = None
         self._mid = 0
         FakeClient.instances.append(self)
@@ -61,6 +59,9 @@ class FakeClient(object):
     def _next_mid(self):
         self._mid += 1
         return self._mid
+
+    def enable_logger(self, logger):
+        self.logger = logger
 
     def username_pw_set(self, username, password=None):
         self.credentials = (username, password)
@@ -72,8 +73,7 @@ class FakeClient(object):
 
     def loop_start(self):
         self.loop_starts += 1
-        self.loop_thread = threading.Thread(target=self._loop_forever,
-                                            daemon=True)
+        self.loop_thread = threading.Thread(target=self._loop_forever, daemon=True)
         self._thread = self.loop_thread
         self.loop_thread.start()
         if self.connack is not None:
@@ -151,25 +151,25 @@ class Recorder(object):
 @pytest.fixture
 def fake(monkeypatch):
     FakeClient.instances = []
-    monkeypatch.setattr(connection.mqtt, 'Client', FakeClient)
+    monkeypatch.setattr(connection.mqtt, "Client", FakeClient)
     return FakeClient
 
 
 @pytest.fixture
 def log(monkeypatch):
     recorder = Recorder()
-    monkeypatch.setattr(keywords, 'logger', recorder)
-    monkeypatch.setattr(connection, 'logger', recorder)
+    monkeypatch.setattr(keywords, "logger", recorder)
+    monkeypatch.setattr(connection, "logger", recorder)
     return recorder
 
 
 @pytest.fixture
 def lib(fake, log):
-    return Library(loop_timeout='0.05 seconds')
+    return Library(loop_timeout="0.05 seconds")
 
 
 @pytest.fixture
 def client(lib):
     """Connect on the default alias and return the fake client."""
-    lib.connect('broker.test')
+    lib.connect("broker.test")
     return FakeClient.instances[-1]
