@@ -39,7 +39,10 @@ test-unit: $(STAMP)
 test-acc: $(STAMP)
 	$(BIN)/python -m robot --outputdir $(RESULTS) tests/acceptance
 
+# With the Robot Framework pinned in the docs extra, which CI also uses to
+# check docs/index.html.
 docs: $(STAMP)
+	$(BIN)/python -m pip install --quiet -e ".[docs]"
 	$(BIN)/python -m robot.libdoc MQTTLibrary docs/index.html
 
 # Like CI, the dry run fails on warnings as well as errors.

@@ -4,9 +4,12 @@ Usage: python .github/check_docs.py <path to index.html>
 
 Regenerates the keyword documentation with libdoc and compares the library
 data libdoc embeds in both files. The generation time and the absolute
-source paths differ on every machine, so they are ignored, and so is the
-surrounding HTML, which changes with the Robot Framework version. Run
-`make docs` to regenerate the file.
+source paths differ on every machine, so they are ignored.
+
+libdoc's output also changes between Robot Framework releases, so both the
+file and this check must use the Robot Framework pinned in the `docs` extra
+in pyproject.toml. `make docs` and CI install it. Run `make docs` to
+regenerate the file.
 """
 
 import json

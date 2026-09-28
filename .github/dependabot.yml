@@ -1,0 +1,8 @@
+# Keeps the GitHub Actions in the workflows current, including the publish
+# action, which is pinned to a commit.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

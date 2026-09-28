@@ -1,8 +1,10 @@
 """Release checks for the publish job.
 
 Usage:
-  python .github/release.py check <tag>   the tag must equal the version in
-                                          version.py; prints whether it is a
+  python .github/release.py check <tag>   the tag must equal the package
+                                          version (read like hatchling, via
+                                          [tool.hatch.version] in
+                                          pyproject.toml); prints whether it is a
                                           pre-release and writes
                                           prerelease=true|false to
                                           $GITHUB_OUTPUT when set
@@ -16,11 +18,13 @@ import re
 import sys
 from pathlib import Path
 
+import tomllib
 from packaging.version import InvalidVersion, Version
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION_FILE = ROOT / "src/MQTTLibrary/version.py"
 CHANGELOG = ROOT / "CHANGELOG.md"
+# A link reference definition, as in the block at the end of CHANGELOG.md.
+LINK_DEFINITION = re.compile(r"^\[[^\]]+\]: \S+")
 
 
 def fail(message):
@@ -28,12 +32,14 @@ def fail(message):
 
 
 def package_version():
-    match = re.search(
-        r"VERSION = ['\"]([^'\"]+)['\"]", VERSION_FILE.read_text(encoding="utf-8")
-    )
+    """The version as hatchling reads it: [tool.hatch.version] in pyproject."""
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    config = pyproject["tool"]["hatch"]["version"]
+    path = ROOT / config["path"]
+    match = re.search(config["pattern"], path.read_text(encoding="utf-8"), re.M)
     if not match:
-        fail(f"no VERSION in {VERSION_FILE}")
-    return match.group(1)
+        fail(f"the [tool.hatch.version] pattern does not match {config['path']}")
+    return match.group("version")
 
 
 def check(tag):
@@ -61,14 +67,14 @@ def notes(version):
     if start is None:
         fail(f"CHANGELOG.md has no section for {version}")
     end = next(
-        (
-            i
-            for i in range(start + 1, len(lines))
-            if lines[i].startswith("## [") or re.match(r"^\[[^\]]+\]: ", lines[i])
-        ),
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
         len(lines),
     )
-    body = "\n".join(lines[start + 1 : end]).strip()
+    section = lines[start + 1 : end]
+    # The last section is followed by the link definitions for the headings.
+    while section and (not section[-1].strip() or LINK_DEFINITION.match(section[-1])):
+        section.pop()
+    body = "\n".join(section).strip()
     if not body:
         fail(f"the CHANGELOG section for {version} is empty")
     print(body)
