@@ -9,6 +9,45 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+## [1.0.0rc1] - 2026-09-27
+
+The first release on paho-mqtt 2. Connections now stay alive between
+keywords, no message is lost, and several connections can be open at once.
+This is a release candidate: install it with
+`pip install --pre robotframework-mqttlibrary`. A plain
+`pip install robotframework-mqttlibrary`, or a `~=0.7` requirement, still
+installs 0.7.2.
+
+### Migrating from 0.7
+
+- **Requirements.** Python 3.9 or later and paho-mqtt 2.1 or later below 3.
+  Stay on 0.7.2 if you need paho-mqtt 1.x.
+- **`Connect` returns nothing.** Replace `${mqttc._client_id}` and similar
+  with `Get Connection Info`, for example
+  `${info}= Get Connection Info` and `${info}[client_id]`.
+- **Name your connections.** 0.7 left a connection running when `Connect`
+  was called again, and some suites relied on those leaked connections, for
+  example to subscribe with one client and publish with another. Give each
+  one an `alias=` and pass it to the other keywords; use `Disconnect All` in
+  teardown. Connecting again on a connected alias now disconnects the old
+  connection with a warning.
+- **`limit` returns the oldest messages and keeps the rest.** 0.7 returned
+  the newest and dropped the others, and left unread messages on the broker
+  for a later session. Now every delivered message is read and acknowledged,
+  and the rest stay queued for the next `Listen` on the same connection.
+- **Update expected error messages.** Errors now carry the broker's reason,
+  for example `Connection to 127.0.0.1:11883 failed: Not authorized`
+  instead of `The client disconnected unexpectedly`. `Publish Single` and
+  `Publish Multiple` report paho 2's reason text. A glob such as
+  `*Not authorized*` works for both.
+- **Keywords fail where 0.7 carried on.** `Publish` fails if the message is
+  not acknowledged, `Subscribe` fails if the broker refuses or does not
+  acknowledge the subscription, and `Listen` fails if the connection is
+  lost and nothing is queued.
+- **Arguments are converted from type hints.** An invalid value such as
+  `qos=high` fails before the keyword runs. Python code that calls the
+  keywords directly must pass numbers and booleans, not strings.
+
 ### Added
 
 - Pushing a version tag publishes the release from CI: the tag must match
@@ -158,6 +197,7 @@ Released from the `0.7.x` branch for suites that need paho-mqtt 1.x.
 
 - Tests use local brokers instead of a public broker ([#22](https://github.com/randomsync/robotframework-mqttlibrary/pull/22)).
 
-[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...HEAD
+[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0rc1...HEAD
+[1.0.0rc1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.2...1.0.0rc1
 [0.7.2]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.0...0.7.1
