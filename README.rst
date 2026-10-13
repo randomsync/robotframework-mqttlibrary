@@ -21,10 +21,9 @@ MQTTLibrary can be installed using `pip <https://pip.pypa.io>`__::
 
     pip install robotframework-mqttlibrary
 
-To try the 1.0 release candidate, ask for it by version, so that pip does
-not also pick pre-releases of the dependencies::
+To stay on 0.7.2, the last release for paho-mqtt 1, pin it::
 
-    pip install robotframework-mqttlibrary==1.0.0rc1
+    pip install "robotframework-mqttlibrary~=0.7"
 
 Supported versions:
 

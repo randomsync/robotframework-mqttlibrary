@@ -9,6 +9,20 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-13
+
+The first stable release on paho-mqtt 2. It is 1.0.0rc1 with the
+documentation note below; nobody reported a problem with the release
+candidate. Connections stay alive between keywords, messages are queued from
+the moment of `Connect`, and several connections can be open at once with
+`alias=`. 1.0 changes some keyword behaviour: read
+[Migrating from 0.7](https://github.com/randomsync/robotframework-mqttlibrary/blob/1.0.0/CHANGELOG.md#migrating-from-07) before upgrading. A `~=0.7`
+requirement still installs 0.7.2.
+
+The background network loop builds on the idea in
+[PR #27](https://github.com/randomsync/robotframework-mqttlibrary/pull/27)
+by [@juha-ylikoski](https://github.com/juha-ylikoski).
+
 ### Added
 
 - The keyword documentation starts with a note for 0.7 users, linking to
@@ -234,7 +248,8 @@ Released from the `0.7.x` branch for suites that need paho-mqtt 1.x.
 
 - Tests use local brokers instead of a public broker ([#22](https://github.com/randomsync/robotframework-mqttlibrary/pull/22)).
 
-[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0rc1...HEAD
+[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0rc1...1.0.0
 [1.0.0rc1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.2...1.0.0rc1
 [0.7.2]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.0...0.7.1
