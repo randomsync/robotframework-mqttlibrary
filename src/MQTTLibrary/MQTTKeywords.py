@@ -617,7 +617,8 @@ class MQTTKeywords(object):
         conn.subscribe(topic, qos)
         if seconds == 0:
             return []
-        return [m.payload for m in conn.listen(topic, seconds, limit, decode)]
+        messages = self._take("Listen", topic, seconds, limit, alias, decode)
+        return [message.payload for message in messages]
 
     def listen(
         self,
@@ -663,7 +664,7 @@ class MQTTKeywords(object):
         | @{messages}= | Listen | test/test | timeout=60 | limit=1 |
         | Length should be | ${messages} | 1 |
         """
-        messages = self._take("Listening on", topic, timeout, limit, alias, decode)
+        messages = self._take("Listen", topic, timeout, limit, alias, decode)
         return [message.payload for message in messages]
 
     def get_messages(
@@ -672,6 +673,7 @@ class MQTTKeywords(object):
         timeout: timedelta = "0 seconds",
         limit: int = 0,
         alias: Optional[str] = None,
+        *,
         decode: bool = True,
     ) -> list:
         """Return the messages queued for a topic as message objects, oldest
@@ -684,7 +686,8 @@ class MQTTKeywords(object):
         ``properties`` (a dictionary of MQTT 5 properties, empty for earlier
         versions) and ``timestamp`` (when it arrived, in seconds since the
         epoch). Returns an empty list, with a warning, if the topic has no
-        subscription.
+        subscription. Like `Listen`, fails if the connection is lost and
+        nothing is queued.
 
         ``topic`` the topic filter given to `Subscribe`
 
@@ -698,7 +701,7 @@ class MQTTKeywords(object):
         ``alias`` the connection to use (see `Connect`)
 
         ``decode`` decodes payloads as UTF-8 strings (default). ``${False}``
-        keeps them as bytes. See `Listen`.
+        keeps them as bytes. See `Listen`. Must be given by name.
 
         Examples:
 
@@ -713,14 +716,16 @@ class MQTTKeywords(object):
         | ... | decode=${False} |
         | Should Be Equal | ${messages[0].payload} | ${{bytes([0, 255])}} |
         """
-        return self._take("Getting messages on", topic, timeout, limit, alias, decode)
+        return self._take("Get Messages", topic, timeout, limit, alias, decode)
 
-    def _take(self, action, topic, timeout, limit, alias, decode):
-        logger.info("%s topic: %s" % (action, topic))
+    def _take(self, keyword, topic, timeout, limit, alias, decode):
+        """Take messages for Subscribe, Listen and Get Messages."""
+        logger.info("%s on topic: %s" % (keyword, topic))
         conn = self._connection(alias)
-        messages = conn.listen(topic, _seconds(timeout), limit, decode)
+        messages = conn.listen(topic, _seconds(timeout), limit, decode, keyword)
         if messages is None:
-            logger.warn("Cannot listen when not subscribed to topic: %s" % topic)
+            action = "listen" if keyword == "Listen" else "get messages"
+            logger.warn("Cannot %s when not subscribed to topic: %s" % (action, topic))
             return []
         return messages
 
@@ -728,7 +733,8 @@ class MQTTKeywords(object):
         """Drop the messages queued for a topic, or without a topic every
         message the connection has queued, including those that match no
         subscription yet. Subscriptions stay as they are, and later messages
-        are queued as usual.
+        are queued as usual. Warns first if a full queue dropped messages
+        that no read has reported.
 
         ``topic`` the topic filter given to `Subscribe`. Warns if the topic
         has no subscription.

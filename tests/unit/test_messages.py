@@ -35,6 +35,15 @@ def test_message_repr_shows_every_field(lib, client):
         assert field in text
 
 
+def test_messages_compare_and_hash_by_identity(lib, client):
+    lib.subscribe("a", 1, timeout=0)
+    client.fire_message("a", "same")
+    client.fire_message("a", "same")
+    first, second = lib.get_messages("a")
+    assert first != second
+    assert len({first, second}) == 2
+
+
 def test_messages_are_frozen(lib, client):
     lib.subscribe("a", 1, timeout=0)
     client.fire_message("a", "one")
@@ -55,6 +64,49 @@ def test_mqtt5_properties_become_a_dict(lib, client):
         "UserProperty": [("key", "value")],
         "CorrelationData": b"\x01\x02",
     }
+
+
+@pytest.mark.parametrize("order", [(1, 0), (0, 1)])
+def test_overlapping_copies_give_each_filter_its_qos(lib, client, order):
+    # Mosquitto sends a copy per subscription, at that subscription's QoS,
+    # in either order.
+    lib.subscribe("a/#", 0, timeout=0)
+    lib.subscribe("a/1", 1, timeout=0)
+    for qos in order:
+        client.fire_message("a/1", "one", qos=qos)
+    assert [m.qos for m in lib.get_messages("a/#")] == [0]
+    assert [m.qos for m in lib.get_messages("a/1")] == [1]
+
+
+def test_single_copy_for_overlapping_filters_has_the_highest_qos(lib, client):
+    lib.subscribe("a/#", 0, timeout=0)
+    lib.subscribe("a/1", 2, timeout=0)
+    client.fire_message("a/1", "one", qos=2)
+    assert lib.get_messages("a/#")[0].qos == 0
+    assert lib.get_messages("a/1")[0].qos == 2
+
+
+def test_late_copy_does_not_change_a_message_already_taken(lib, client):
+    lib.subscribe("a/#", 1, timeout=0)
+    lib.subscribe("a/1", 2, timeout=0)
+    client.fire_message("a/1", "one", qos=1)
+    [taken] = lib.get_messages("a/1")
+    client.fire_message("a/1", "one", qos=2)
+    assert taken.qos == 1
+    assert lib.get_messages("a/#")[0].qos == 1
+
+
+def test_each_queue_has_its_own_message(lib, client):
+    properties = Properties(PacketTypes.PUBLISH)
+    properties.UserProperty = ("key", "value")
+    lib.subscribe("a/#", 1, timeout=0)
+    lib.subscribe("a/1", 1, timeout=0)
+    client.fire_message("a/1", "one", properties=properties)
+    [wide] = lib.get_messages("a/#")
+    wide.properties["UserProperty"].append(("changed", "yes"))
+    [narrow] = lib.get_messages("a/1")
+    assert narrow is not wide
+    assert narrow.properties == {"UserProperty": [("key", "value")]}
 
 
 def test_wildcard_messages_carry_their_topic(lib, client):
@@ -133,13 +185,13 @@ def test_get_messages_waits_for_the_limit(lib, client):
 
 def test_get_messages_without_subscribe_warns(lib, client, log):
     assert lib.get_messages("nothing") == []
-    assert log.warnings == ["Cannot listen when not subscribed to topic: nothing"]
+    assert log.warnings == ["Cannot get messages when not subscribed to topic: nothing"]
 
 
 def test_get_messages_after_a_lost_connection_fails_when_empty(lib, client):
     lib.subscribe("a", 1, timeout=0)
     client.fire_disconnect(reason(PacketTypes.DISCONNECT, "Unspecified error"))
-    with pytest.raises(RuntimeError, match="^Listen on a failed"):
+    with pytest.raises(RuntimeError, match="^Get Messages on a failed"):
         lib.get_messages("a")
 
 
@@ -168,7 +220,7 @@ def test_clear_messages_of_every_queue(lib, client):
     assert lib.get_messages("unclaimed") == []
 
 
-def test_clear_messages_forgets_dropped_messages(monkeypatch, fake, log):
+def test_clear_messages_reports_dropped_messages_first(monkeypatch, fake, log):
     lib = Library(loop_timeout="0.05 seconds", max_queue=1)
     lib.connect("broker.test")
     client = FakeClient.instances[-1]
@@ -176,9 +228,12 @@ def test_clear_messages_forgets_dropped_messages(monkeypatch, fake, log):
     client.fire_message("a", "one")
     client.fire_message("a", "two")
     lib.clear_messages("a")
+    assert log.warnings == [
+        "1 messages on a were dropped because more than 1 were queued"
+    ]
     client.fire_message("a", "three")
     assert lib.listen("a", timeout=0) == ["three"]
-    assert log.warnings == []
+    assert len(log.warnings) == 1
 
 
 def test_clear_messages_without_subscribe_warns(lib, client, log):

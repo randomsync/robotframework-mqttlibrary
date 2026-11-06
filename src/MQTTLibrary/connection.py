@@ -13,6 +13,7 @@ deadlock.
 """
 
 import collections
+import copy
 import dataclasses
 import logging
 import re
@@ -45,7 +46,9 @@ PAHO_LOGGER = logging.getLogger("MQTTLibrary.paho")
 ABANDONED_ACK_SECONDS = 60
 
 
-@dataclasses.dataclass(frozen=True)
+# eq=False: compared and hashed by identity. Field equality would compare
+# timestamps, and hashing would fail on the properties dict.
+@dataclasses.dataclass(frozen=True, eq=False)
 class Message:
     """A received message.
 
@@ -53,7 +56,7 @@ class Message:
     UTF-8 unless asked for bytes. ``properties`` maps MQTT 5 property names,
     such as ``ContentType`` or ``UserProperty``, to their values, and is
     empty for earlier protocol versions. ``timestamp`` is when the message
-    arrived, in seconds since the epoch.
+    arrived, in seconds since the epoch. Each queue holds its own object.
     """
 
     topic: str
@@ -62,6 +65,18 @@ class Message:
     retain: bool
     properties: dict
     timestamp: float
+
+
+class _Copies(object):
+    """A message just queued for overlapping filters, while the broker may
+    still send copies of it, one per further matching subscription."""
+
+    def __init__(self, key, remaining, qos, entries):
+        self.key = key
+        self.remaining = remaining
+        self.qos = qos
+        # [filter, queue, the Message queued for it]
+        self.entries = entries
 
 
 class _Queue(collections.deque):
@@ -340,7 +355,7 @@ class _Connection(object):
         finally:
             self.unregister(topic)
 
-    def listen(self, topic, timeout, limit, decode=True):
+    def listen(self, topic, timeout, limit, decode=True, keyword="Listen"):
         """Return up to ``limit`` of the oldest messages on ``topic``, as
         Message objects with their payloads decoded as UTF-8, or as bytes
         without ``decode``.
@@ -350,7 +365,7 @@ class _Connection(object):
         returns everything. Returns None if ``topic`` is not a registered
         filter. Fails if nothing is queued and the connection is lost, unless
         reconnecting is on, or the broker refused the subscription after a
-        reconnect.
+        reconnect. ``keyword`` names the keyword in errors.
         """
         with self._cond:
             queue = self._filters.get(topic)
@@ -367,11 +382,11 @@ class _Connection(object):
             self._warn_dropped(topic, queue)
             if not queue and topic in self._refused:
                 raise RuntimeError(
-                    "Listen on %s failed: the broker refused the subscription "
-                    "after a reconnect: %s" % (topic, self._refused[topic])
+                    "%s on %s failed: the broker refused the subscription "
+                    "after a reconnect: %s" % (keyword, topic, self._refused[topic])
                 )
             if not queue and failed():
-                raise RuntimeError("Listen on %s failed%s" % (topic, self._lost()))
+                raise RuntimeError("%s on %s failed%s" % (keyword, topic, self._lost()))
             count = len(queue) if limit == 0 else min(limit, len(queue))
             # Decode before taking, so an undecodable message does not take
             # the good ones with it.
@@ -425,21 +440,22 @@ class _Connection(object):
 
     def clear(self, topic=None):
         """Drop the messages queued for ``topic``, or without a topic every
-        queued message, including those that match no filter. Returns how
-        many were dropped, or None if ``topic`` is not a registered filter.
+        queued message, including those that match no filter. Warns first
+        about messages a full queue dropped. Returns how many were queued,
+        or None if ``topic`` is not a registered filter.
         """
         with self._cond:
             if topic is None:
-                queues = list(self._filters.values()) + [self._unclaimed]
+                named = list(self._filters.items()) + [(None, self._unclaimed)]
             elif topic in self._filters:
-                queues = [self._filters[topic]]
+                named = [(topic, self._filters[topic])]
             else:
                 return None
             count = 0
-            for queue in queues:
+            for name, queue in named:
+                self._warn_dropped(name, queue)
                 count += len(queue)
                 queue.clear()
-                queue.dropped = 0
             return count
 
     def register(self, topic):
@@ -610,33 +626,66 @@ class _Connection(object):
         # goes into every matching queue, and the identical copies that follow
         # it directly are dropped, so each filter gets the message once
         # either way.
-        received = Message(
-            topic=message.topic,
-            payload=bytes(message.payload),
-            qos=message.qos,
-            retain=bool(message.retain),
-            properties=_properties(message.properties),
-            timestamp=time.time(),
-        )
-        key = (received.topic, received.payload, received.retain)
+        #
+        # Each copy has the QoS of its subscription, min(published, granted),
+        # and the copies can come in any order. The highest QoS among them is
+        # min(published, highest granted), so min(that, a filter's QoS) is
+        # what the broker delivers for that filter. A single copy for
+        # overlapping subscriptions has the highest QoS too. Later copies
+        # raise the QoS of entries that are still queued.
+        key = (message.topic, message.payload, message.retain)
         with self._cond:
-            duplicates, self._duplicates = self._duplicates, None
-            if duplicates is not None and duplicates[0] == key:
-                if duplicates[1] > 1:
-                    self._duplicates = (key, duplicates[1] - 1)
+            copies, self._duplicates = self._duplicates, None
+            if copies is not None and copies.key == key:
+                copies.remaining -= 1
+                if copies.remaining:
+                    self._duplicates = copies
+                if message.qos > copies.qos:
+                    copies.qos = message.qos
+                    self._requeue(copies)
                 return
             matched = [
-                queue
+                (topic, queue)
                 for topic, queue in self._filters.items()
-                if mqtt.topic_matches_sub(topic, received.topic)
+                if mqtt.topic_matches_sub(topic, message.topic)
             ]
-            for queue in matched:
-                queue.put(received)
+            received = Message(
+                topic=message.topic,
+                payload=bytes(message.payload),
+                qos=message.qos,
+                retain=bool(message.retain),
+                properties=_properties(message.properties),
+                timestamp=time.time(),
+            )
             if not matched:
                 self._unclaimed.put(received)
+            entries = []
+            for index, (topic, queue) in enumerate(matched):
+                # Its own object and properties per queue, so changing one
+                # message cannot change another filter's copy.
+                queued = dataclasses.replace(
+                    received,
+                    qos=min(message.qos, self._qos.get(topic, message.qos)),
+                    properties=(
+                        copy.deepcopy(received.properties)
+                        if index
+                        else received.properties
+                    ),
+                )
+                queue.put(queued)
+                entries.append([topic, queue, queued])
             if len(matched) > 1:
-                self._duplicates = (key, len(matched) - 1)
+                self._duplicates = _Copies(key, len(matched) - 1, message.qos, entries)
             self._cond.notify_all()
+
+    def _requeue(self, copies):
+        """Give the still-queued entries of ``copies`` the QoS their filter
+        gets now that a copy with a higher QoS came. Holds the lock."""
+        for entry in copies.entries:
+            topic, queue, queued = entry
+            qos = min(copies.qos, self._qos.get(topic, copies.qos))
+            if qos != queued.qos and queue and queue[-1] is queued:
+                entry[2] = queue[-1] = dataclasses.replace(queued, qos=qos)
 
 
 def _decode(message):

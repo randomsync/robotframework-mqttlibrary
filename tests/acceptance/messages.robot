@@ -26,6 +26,20 @@ Messages of a wildcard subscription carry their topic
     Should Be Equal    ${messages[1].payload}    40
     Should Be Equal As Integers    ${messages[1].qos}    0
 
+Overlapping subscriptions each report their own qos
+    [Documentation]    Mosquitto sends a copy per subscription, at that
+    ...    subscription's qos. Each filter keeps one message with its qos.
+    Connect    ${BROKER}    ${PORT}
+    Subscribe    ${TOPIC}/#    qos=0    timeout=0
+    Subscribe    ${TOPIC}/1    qos=1    timeout=0
+    Publish    ${TOPIC}/1    overlapping    qos=1
+    @{wide}=    Get Messages    ${TOPIC}/#    timeout=5    limit=1
+    @{narrow}=    Get Messages    ${TOPIC}/1    timeout=5    limit=1
+    Should Be Equal As Integers    ${wide[0].qos}    0
+    Should Be Equal As Integers    ${narrow[0].qos}    1
+    @{more}=    Get Messages    ${TOPIC}/#    timeout=0.5s
+    Should Be Empty    ${more}
+
 A message object has all six fields
     Connect    ${BROKER}    ${PORT}
     Subscribe    ${TOPIC}    qos=1    timeout=0
