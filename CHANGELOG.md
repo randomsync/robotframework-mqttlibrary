@@ -9,6 +9,15 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-06
+
+Adds TLS, websockets, MQTT 5 and reconnecting to `Connect`, message objects
+with each message's topic and raw bytes, and assertion keywords. Nothing
+changes for 1.0 suites: every 1.0 keyword keeps its arguments and behaviour,
+and `Publish`, which returned nothing, now returns the message id.
+`Set Username And Password` still works but logs a deprecation warning;
+pass `username` and `password` to `Connect` instead.
+
 ### Added
 
 - TLS on `Connect`: `tls`, `ca_certs`, `certfile`, `keyfile`,
@@ -294,7 +303,8 @@ Released from the `0.7.x` branch for suites that need paho-mqtt 1.x.
 
 - Tests use local brokers instead of a public broker ([#22](https://github.com/randomsync/robotframework-mqttlibrary/pull/22)).
 
-[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0...HEAD
+[Unreleased]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/randomsync/robotframework-mqttlibrary/compare/1.0.0rc1...1.0.0
 [1.0.0rc1]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.2...1.0.0rc1
 [0.7.2]: https://github.com/randomsync/robotframework-mqttlibrary/compare/0.7.1...0.7.2
