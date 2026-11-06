@@ -41,6 +41,8 @@ class FakeClient(object):
         self.ws_options = None
         self.will = None
         self.reconnect_delays = None
+        self._reconnect_on_failure = kwargs.get("reconnect_on_failure", True)
+        self.sock = None
         self.connack = reason(PacketTypes.CONNACK, "Success")
         self.suback = [reason(PacketTypes.SUBACK, "Granted QoS 1")]
         self.unsuback = [reason(PacketTypes.UNSUBACK, "Success")]
@@ -108,6 +110,9 @@ class FakeClient(object):
     @property
     def stopped(self):
         return self._thread_terminate and not self.loop_thread.is_alive()
+
+    def socket(self):
+        return self.sock
 
     def disconnect(self):
         self.disconnects += 1

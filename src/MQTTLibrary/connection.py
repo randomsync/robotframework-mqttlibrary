@@ -99,6 +99,11 @@ class _Connection(object):
         # The QoS of each acknowledged subscription, to subscribe again after
         # a reconnect.
         self._qos = {}
+        # Subscriptions renewed after a reconnect whose SUBACK has not come:
+        # mid -> (time sent, topics). Then the ones the broker refused:
+        # topic -> reason code.
+        self._renewals = {}
+        self._refused = {}
         self._unclaimed = _Queue()
         self._duplicates = None
         self._acks = {}
@@ -107,18 +112,20 @@ class _Connection(object):
         self._disconnect_reason = None
         self._thread = None
 
-        # reconnect_on_failure is False unless asked for, unlike paho's
-        # default. Either way open() fails on a refused first connection,
-        # because it stops the loop. paho raises ValueError here for an empty
-        # client id with clean_session=False; that message is the keyword
-        # failure. paho requires clean_session None with MQTT 5.
+        # reconnect_on_failure starts False, unlike paho's default, so a
+        # refused first connection fails the keyword. With it on, paho 2.1
+        # also answers CONNACK 1 and 2 by falling back to MQTT 3.1 or a random
+        # client id. _on_connect turns it on after the first successful
+        # CONNACK when reconnecting was asked for. paho raises ValueError here
+        # for an empty client id with clean_session=False; that message is
+        # the keyword failure. paho requires clean_session None with MQTT 5.
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=client_id,
             clean_session=None if protocol == mqtt.MQTTv5 else clean_session,
             protocol=protocol,
             transport=transport,
-            reconnect_on_failure=self.reconnect,
+            reconnect_on_failure=False,
         )
         self.client.enable_logger(PAHO_LOGGER)
         # Bounds the TCP connect in client.connect(), so an unreachable host
@@ -223,7 +230,8 @@ class _Connection(object):
 
         Returns False if the broker did not confirm the disconnect, or the
         network thread did not end, within the timeout. Raises if the
-        connection was lost before or during the disconnect.
+        connection was lost before or during the disconnect, unless
+        reconnecting is on.
         """
         confirmed = True
         if self._connected:
@@ -232,9 +240,18 @@ class _Connection(object):
                 confirmed = self._cond.wait_for(
                     lambda: self._disconnect_reason is not None, self.timeout
                 )
+        elif self.reconnect:
+            # Stops paho's reconnect attempts, which check its state between
+            # tries.
+            self.client.disconnect()
         stopped = self._stop()
+        if stopped and self.reconnect and self.client.socket() is not None:
+            # A reconnect finished while the loop was stopping. With the loop
+            # gone, paho writes the DISCONNECT and closes the socket at once,
+            # so the broker does not publish the last will.
+            self.client.disconnect()
         reason = self._disconnect_reason
-        if reason is not None and reason.is_failure:
+        if reason is not None and reason.is_failure and not self.reconnect:
             raise RuntimeError("The client disconnected unexpectedly: %s" % reason)
         return confirmed and stopped
 
@@ -273,6 +290,7 @@ class _Connection(object):
                 raise RuntimeError("Subscribe to %s failed: %s" % (topic, failures[0]))
             with self._cond:
                 self._qos[topic] = qos
+                self._refused.pop(topic, None)
         except Exception:
             if created:
                 # Keeps what register() took from the unclaimed queue, so a
@@ -302,22 +320,29 @@ class _Connection(object):
         Waits until ``limit`` messages are queued, the connection is lost, or
         ``timeout`` elapses. With ``limit`` 0, waits the whole timeout and
         returns everything. Returns None if ``topic`` is not a registered
-        filter. Fails if the connection is lost and nothing is queued, unless
-        reconnecting is on.
+        filter. Fails if nothing is queued and the connection is lost, unless
+        reconnecting is on, or the broker refused the subscription after a
+        reconnect.
         """
         with self._cond:
             queue = self._filters.get(topic)
             if queue is None:
                 return None
 
-            lost = self._gone
+            def failed():
+                return self._gone() or topic in self._refused
 
             if limit > 0:
-                self._cond.wait_for(lambda: len(queue) >= limit or lost(), timeout)
+                self._cond.wait_for(lambda: len(queue) >= limit or failed(), timeout)
             else:
-                self._cond.wait_for(lost, timeout)
+                self._cond.wait_for(failed, timeout)
             self._warn_dropped(topic, queue)
-            if not queue and lost():
+            if not queue and topic in self._refused:
+                raise RuntimeError(
+                    "Listen on %s failed: the broker refused the subscription "
+                    "after a reconnect: %s" % (topic, self._refused[topic])
+                )
+            if not queue and failed():
                 raise RuntimeError("Listen on %s failed%s" % (topic, self._lost()))
             count = len(queue) if limit == 0 else min(limit, len(queue))
             # Decode before taking, so an undecodable message does not take
@@ -397,6 +422,7 @@ class _Connection(object):
         with self._cond:
             queue = self._filters.pop(topic, None)
             self._qos.pop(topic, None)
+            self._refused.pop(topic, None)
             if keep_messages and queue:
                 # The returned messages are the oldest, so when the unclaimed
                 # queue is full the oldest go, as with any other overflow.
@@ -433,6 +459,15 @@ class _Connection(object):
                 "were queued" % (queue.dropped, where, QUEUE_LIMIT)
             )
             queue.dropped = 0
+
+    def _renewed(self, topics, codes):
+        """Record the renewed subscriptions the broker refused. Holds the
+        lock."""
+        for topic, code in zip(topics, codes):
+            if code.is_failure and topic in self._qos:
+                del self._qos[topic]
+                self._refused[topic] = code
+        self._cond.notify_all()
 
     def _gone(self):
         """True if the connection is lost and will not come back by itself.
@@ -475,16 +510,24 @@ class _Connection(object):
                 self._disconnect_reason = None
                 if self._connack is not None and not flags.session_present:
                     resubscribe = list(self._qos.items())
+                # paho reads the flag when the connection drops. Set here, on
+                # the network thread, it is on before any drop can be seen.
+                if self.reconnect:
+                    client._reconnect_on_failure = True
             self._connack = reason_code
             self._cond.notify_all()
         if resubscribe:
             # Outside the lock, like every call into paho. Nobody waits for
-            # this SUBACK, so it is discarded like a late one.
+            # this SUBACK; _on_ack records the topics it refuses.
+            topics = [topic for topic, _ in resubscribe]
             rc, mid = client.subscribe(resubscribe)
             if rc == mqtt.MQTT_ERR_SUCCESS:
                 with self._cond:
-                    if self._acks.pop(mid, None) is None:
-                        self._abandoned[mid] = time.monotonic()
+                    codes = self._acks.pop(mid, None)
+                    if codes is None:
+                        self._renewals[mid] = (time.monotonic(), topics)
+                    else:
+                        self._renewed(topics, codes)
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         with self._cond:
@@ -493,6 +536,13 @@ class _Connection(object):
 
     def _on_ack(self, client, userdata, mid, reason_codes, properties):
         with self._cond:
+            renewal = self._renewals.pop(mid, None)
+            if (
+                renewal is not None
+                and time.monotonic() - renewal[0] < ABANDONED_ACK_SECONDS
+            ):
+                self._renewed(renewal[1], reason_codes)
+                return
             abandoned = self._abandoned.pop(mid, None)
             if (
                 abandoned is not None

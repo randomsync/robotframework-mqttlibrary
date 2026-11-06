@@ -63,6 +63,21 @@ def test_clean_start_and_session_expiry_reach_connect(lib, fake):
     assert options["properties"].SessionExpiryInterval == 300
 
 
+@pytest.mark.parametrize("value", [-1, 2**32])
+def test_session_expiry_is_range_checked(lib, fake, value):
+    with pytest.raises(
+        RuntimeError, match="^session_expiry must be between 0 and 4294967295"
+    ):
+        lib.connect("broker.test", "me", protocol="MQTTv5", session_expiry=value)
+    assert fake.instances == []
+
+
+def test_largest_session_expiry(lib, fake):
+    lib.connect("broker.test", "me", protocol="MQTTv5", session_expiry=2**32 - 1)
+    options = fake.instances[-1].connect_options
+    assert options["properties"].SessionExpiryInterval == 2**32 - 1
+
+
 def test_unknown_protocol_fails_connect(lib, fake):
     with pytest.raises(RuntimeError, match="^Unknown MQTT protocol version: MQTTv6"):
         lib.connect("broker.test", protocol="MQTTv6")
@@ -82,10 +97,17 @@ def test_connect_credentials_take_precedence(lib, fake):
     assert fake.instances[-1].credentials == ("new", None)
 
 
-def test_password_needs_a_username(lib, fake):
+@pytest.mark.parametrize("username", [None, ""])
+def test_password_needs_a_username(lib, fake, username):
     lib.set_username_and_password("old", "old-secret")
     with pytest.raises(RuntimeError, match=r"^password needs username\.$"):
-        lib.connect("broker.test", password="secret")
+        lib.connect("broker.test", username=username, password="secret")
+
+
+def test_empty_username_connects_without_credentials(lib, fake):
+    lib.set_username_and_password("old", "old-secret")
+    lib.connect("broker.test", username="")
+    assert fake.instances[-1].credentials is None
 
 
 def test_set_username_and_password_logs_a_deprecation_warning(tmp_path):
@@ -219,9 +241,12 @@ def test_client_certificate(lib, fake, contexts):
     ]
 
 
-def test_keyfile_needs_certfile(lib, fake):
-    with pytest.raises(RuntimeError, match=r"^keyfile needs certfile\.$"):
-        lib.connect("broker.test", keyfile="client.key")
+@pytest.mark.parametrize("option", [{"keyfile": "c.key"}, {"keyfile_password": "x"}])
+def test_key_options_need_certfile(lib, fake, option):
+    with pytest.raises(
+        RuntimeError, match=r"^keyfile and keyfile_password need certfile\.$"
+    ):
+        lib.connect("broker.test", **option)
 
 
 @pytest.mark.parametrize(
@@ -254,11 +279,16 @@ def test_unknown_ciphers_fail(lib, fake, contexts):
 
 
 def test_insecure_skips_verification(lib, fake, contexts):
-    lib.connect("broker.test", ca_certs="other.crt", insecure=True)
+    lib.connect("broker.test", certfile="client.crt", insecure=True)
     context = fake.instances[-1].tls_context
     assert context.verify_mode == ssl.CERT_NONE
     assert context.check_hostname is False
-    assert context.loaded == [("ca", "other.crt")]
+    assert context.loaded == [("cert", "client.crt", None, None)]
+
+
+def test_insecure_with_ca_certs_fails(lib, fake):
+    with pytest.raises(RuntimeError, match="^insecure skips verifying the broker"):
+        lib.connect("broker.test", ca_certs="ca.crt", insecure=True)
 
 
 def test_insecure_alone_loads_no_cas(lib, fake, contexts):
@@ -336,6 +366,23 @@ def test_last_will_topic_cannot_have_wildcards(lib, topic):
         lib.set_last_will(topic, "offline")
 
 
+@pytest.mark.parametrize("payload", [["a"], {"a": 1}])
+def test_last_will_payload_type_is_checked(lib, fake, payload):
+    with pytest.raises(
+        RuntimeError, match="^The last will payload must be a string, bytes, a"
+    ):
+        lib.set_last_will("status", payload)
+    lib.connect("broker.test")
+    assert fake.instances[-1].will is None
+
+
+@pytest.mark.parametrize("payload", [b"\xff", bytearray(b"x"), 1, 2.5, True])
+def test_last_will_accepts_paho_payloads(lib, fake, payload):
+    lib.set_last_will("status", payload)
+    lib.connect("broker.test")
+    assert fake.instances[-1].will[1] == payload
+
+
 def test_last_will_qos_is_checked(lib):
     with pytest.raises(RuntimeError, match=r"^The last will qos must be 0, 1 or 2"):
         lib.set_last_will("status", "offline", 3)
@@ -346,6 +393,7 @@ def test_last_will_qos_is_checked(lib):
 
 def test_reconnecting_is_off_by_default(lib, client):
     assert client.kwargs["reconnect_on_failure"] is False
+    assert client._reconnect_on_failure is False
     assert client.reconnect_delays is None
 
 
@@ -357,8 +405,24 @@ def test_reconnecting_sets_the_delays(lib, fake):
         reconnect_delay_max=30,
     )
     client = fake.instances[-1]
-    assert client.kwargs["reconnect_on_failure"] is True
+    # On only after the first successful CONNACK, so paho cannot answer a
+    # refused one by falling back to MQTT 3.1 or a random client id.
+    assert client.kwargs["reconnect_on_failure"] is False
+    assert client._reconnect_on_failure is True
     assert client.reconnect_delays == (2, 30)
+
+
+@pytest.mark.parametrize("delays", [(0, 120), (-1, 120), (10, 5)])
+def test_reconnect_delays_are_checked(lib, fake, delays):
+    with pytest.raises(
+        RuntimeError, match="^reconnect_delay_min must be at least 1 and no more"
+    ):
+        lib.connect(
+            "broker.test",
+            reconnect_on_failure=True,
+            reconnect_delay_min=delays[0],
+            reconnect_delay_max=delays[1],
+        )
 
 
 def _drop_and_reconnect(client, session_present=False):
@@ -445,3 +509,74 @@ def test_refused_connect_with_reconnecting_fails(lib, fake, monkeypatch):
     with pytest.raises(RuntimeError, match="Not authorized$"):
         lib.connect("broker.test", reconnect_on_failure=True)
     assert fake.instances[-1].stopped
+    assert fake.instances[-1]._reconnect_on_failure is False
+
+
+def test_refused_resubscription_fails_listen(lib, fake):
+    lib.connect("broker.test", reconnect_on_failure=True)
+    client = fake.instances[-1]
+    lib.subscribe("a", 1, timeout=0)
+    lib.subscribe("b", 1, timeout=0)
+    client.suback = [
+        reason(PacketTypes.SUBACK, "Not authorized"),
+        reason(PacketTypes.SUBACK, "Granted QoS 1"),
+    ]
+    _drop_and_reconnect(client)
+    with pytest.raises(
+        RuntimeError,
+        match="^Listen on a failed: the broker refused the subscription after "
+        "a reconnect: Not authorized$",
+    ):
+        lib.listen("a", timeout=1)
+    assert lib.listen("b", timeout=0) == []
+    # Only the accepted one is renewed after the next reconnect.
+    client.suback = [reason(PacketTypes.SUBACK, "Granted QoS 1")]
+    _drop_and_reconnect(client)
+    assert client.subscriptions[-1] == ([("b", 1)], 0)
+
+
+def test_late_resubscribe_suback_is_matched(lib, fake):
+    lib.connect("broker.test", reconnect_on_failure=True)
+    client = fake.instances[-1]
+    lib.subscribe("a", 1, timeout=0)
+    client.suback = None
+    _drop_and_reconnect(client)
+    client.on_subscribe(
+        client, None, client._mid, [reason(PacketTypes.SUBACK, "Not authorized")], None
+    )
+    with pytest.raises(RuntimeError, match="refused the subscription"):
+        lib.listen("a", timeout=0)
+    # Subscribing again clears the refusal.
+    client.suback = [reason(PacketTypes.SUBACK, "Granted QoS 1")]
+    lib.subscribe("a", 1, timeout=0)
+    assert lib.listen("a", timeout=0) == []
+
+
+def test_messages_queued_before_a_refused_resubscription_are_returned(lib, fake):
+    lib.connect("broker.test", reconnect_on_failure=True)
+    client = fake.instances[-1]
+    lib.subscribe("a", 1, timeout=0)
+    client.fire_message("a", "before")
+    client.suback = [reason(PacketTypes.SUBACK, "Not authorized")]
+    _drop_and_reconnect(client)
+    assert lib.listen("a", timeout=0) == ["before"]
+
+
+def test_disconnect_while_reconnecting_stops_without_failing(lib, fake, log):
+    lib.connect("broker.test", reconnect_on_failure=True)
+    client = fake.instances[-1]
+    client.fire_disconnect(reason(PacketTypes.DISCONNECT, "Unspecified error"))
+    lib.disconnect()
+    assert client.disconnects == 1
+    assert client.stopped
+    assert log.warnings == []
+
+
+def test_disconnect_after_a_late_reconnect_says_goodbye(lib, fake):
+    lib.connect("broker.test", reconnect_on_failure=True)
+    client = fake.instances[-1]
+    client.fire_disconnect(reason(PacketTypes.DISCONNECT, "Unspecified error"))
+    # The reconnect finishes while the loop stops: the socket is still open.
+    client.sock = object()
+    lib.disconnect()
+    assert client.disconnects == 2

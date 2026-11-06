@@ -67,8 +67,11 @@ jobs:
         run: |
           set -o pipefail
           python -m robot --dryrun --output NONE --report NONE --log NONE tests/acceptance 2>&1 | tee "$RUNNER_TEMP/dryrun.txt"
-          if grep '\[ WARN \]' "$RUNNER_TEMP/dryrun.txt" \
-              | grep -qv "Keyword 'MQTTLibrary.Set Username And Password' is deprecated"; then
+          # Reads every line, so no grep exits early and pipefail sees no
+          # SIGPIPE.
+          others=$(grep '\[ WARN \]' "$RUNNER_TEMP/dryrun.txt" \
+            | grep -v "Keyword 'MQTTLibrary.Set Username And Password' is deprecated" || true)
+          if [ -n "$others" ]; then
             echo "::error::robot --dryrun printed warnings"
             exit 1
           fi

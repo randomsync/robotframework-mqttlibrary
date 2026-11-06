@@ -26,6 +26,12 @@ DEFAULT_ALIAS = "default"
 # rejects them instead.
 Payload = Any
 
+# The payload types paho accepts. bool is an int.
+_PAYLOAD_TYPES = (str, bytes, bytearray, int, float)
+
+# The largest MQTT 5 session expiry interval, a four-byte integer.
+_MAX_SESSION_EXPIRY = 0xFFFFFFFF
+
 # paho's publish helpers take a dict of TLS settings or an ssl.SSLContext.
 TLS = Union[dict, ssl.SSLContext, None]
 
@@ -62,8 +68,12 @@ def _tls_context(
     ``insecure`` can skip verification altogether: paho's tls_insecure_set()
     only skips the host name check.
     """
-    if keyfile and not certfile:
-        raise RuntimeError("keyfile needs certfile.")
+    if (keyfile or keyfile_password) and not certfile:
+        raise RuntimeError("keyfile and keyfile_password need certfile.")
+    if insecure and ca_certs:
+        raise RuntimeError(
+            "insecure skips verifying the broker, so ca_certs would have no effect."
+        )
     version = None
     if tls_version:
         version = _TLS_VERSIONS.get(tls_version.strip().lower())
@@ -206,6 +216,11 @@ class MQTTKeywords(object):
             )
         if qos not in (0, 1, 2):
             raise RuntimeError("The last will qos must be 0, 1 or 2, not %s." % qos)
+        if payload is not None and not isinstance(payload, _PAYLOAD_TYPES):
+            raise RuntimeError(
+                "The last will payload must be a string, bytes, a number or "
+                "${None}, not %s." % type(payload).__name__
+            )
         self._will = (topic, payload, qos, retain)
 
     def connect(
@@ -269,8 +284,9 @@ class MQTTKeywords(object):
         ``MQTTv5``, or the number 3, 4 or 5.
 
         ``username`` and ``password`` the credentials to send. Without
-        ``username``, the ones set with the deprecated
-        `Set Username And Password` are sent, if any.
+        either, the ones set with the deprecated `Set Username And Password`
+        are sent, if any. ``username=${EMPTY}`` connects without credentials
+        even then.
 
         ``transport`` ``tcp`` (default) or ``websockets``.
 
@@ -308,7 +324,8 @@ class MQTTKeywords(object):
         first connect starts a new session and reconnects resume it.
 
         ``session_expiry`` how many seconds the broker keeps the session after
-        the connection ends. By default the session ends with the connection.
+        the connection ends, up to 4294967295, which means it never expires.
+        By default the session ends with the connection.
 
         Both need ``protocol=MQTTv5``. With MQTT 3.1 and 3.1.1, use
         ``clean_session`` instead; with MQTT 5 it must keep its default.
@@ -317,12 +334,14 @@ class MQTTKeywords(object):
 
         ``reconnect_on_failure`` ``${True}`` reconnects in the background when
         the broker drops the connection. paho waits ``reconnect_delay_min``
-        seconds (default 1) before the first attempt and doubles the wait
-        after each failed one, up to ``reconnect_delay_max`` (default 120).
-        After reconnecting, the connection subscribes again to its topics
-        unless the broker kept the session. While the connection is down,
-        `Listen` waits until its timeout instead of failing, and other
-        keywords fail as usual. A refused first connect still fails.
+        seconds (default 1, at least 1) before the first attempt and doubles
+        the wait after each failed one, up to ``reconnect_delay_max`` (default
+        120). After reconnecting, the connection subscribes again to its
+        topics unless the broker kept the session; `Listen` fails on a topic
+        the broker then refuses. While the connection is down, `Listen` waits
+        until its timeout instead of failing, `Disconnect` stops reconnecting
+        without failing, and other keywords fail as usual. A refused first
+        connect still fails.
 
         Use `Set Last Will` before `Connect` to give the connection a last
         will.
@@ -377,6 +396,19 @@ class MQTTKeywords(object):
                 )
         elif clean_start is not None or session_expiry is not None:
             raise RuntimeError("clean_start and session_expiry need protocol=MQTTv5.")
+        if session_expiry is not None and not (
+            0 <= session_expiry <= _MAX_SESSION_EXPIRY
+        ):
+            raise RuntimeError(
+                "session_expiry must be between 0 and %d, not %s."
+                % (_MAX_SESSION_EXPIRY, session_expiry)
+            )
+        if reconnect_delay_min < 1 or reconnect_delay_max < reconnect_delay_min:
+            raise RuntimeError(
+                "reconnect_delay_min must be at least 1 and no more than "
+                "reconnect_delay_max, not %s and %s."
+                % (reconnect_delay_min, reconnect_delay_max)
+            )
         transport = transport.strip().lower()
         if transport not in _TRANSPORTS:
             raise RuntimeError(
@@ -386,10 +418,12 @@ class MQTTKeywords(object):
             ws_path is not None or ws_headers is not None
         ):
             raise RuntimeError("ws_path and ws_headers need transport=websockets.")
-        if username is None:
+        if username is None and password is None:
+            username, password = self._username, self._password
+        elif not username:
             if password is not None:
                 raise RuntimeError("password needs username.")
-            username, password = self._username, self._password
+            username = None
         context = None
         if (
             tls
@@ -673,7 +707,8 @@ class MQTTKeywords(object):
         loop. Does nothing if there is no such connection.
 
         Fails with ``The client disconnected unexpectedly: <reason>`` if the
-        broker had already dropped the connection.
+        broker had already dropped the connection, unless the connection was
+        opened with ``reconnect_on_failure=${True}``.
 
         ``alias`` the connection to disconnect (see `Connect`)
 

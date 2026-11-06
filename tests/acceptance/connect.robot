@@ -188,6 +188,34 @@ A last will topic with a wildcard fails
     ...    The last will topic must be a topic name without wildcards, not '${TOPIC}/#'.
     ...    Set Last Will    ${TOPIC}/#    gone
 
+A last will payload must be a string, bytes or a number
+    ${payload}=    Create List    gone
+    Run Keyword And Expect Error
+    ...    The last will payload must be a string, bytes, a number or \${None}, not list.
+    ...    Set Last Will    ${TOPIC}    ${payload}
+
+Disconnect while reconnecting stops without failing
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    reconnect_on_failure=${True}
+    ...    reconnect_delay_min=5    alias=victim
+    Take Over Session    ${CLIENT}
+    Wait Until Keyword Succeeds    2s    0.05s
+    ...    Connected Should Be    ${False}    victim
+    Disconnect    victim
+    Run Keyword And Expect Error    No connection with alias 'victim'.*
+    ...    Get Connection Info    victim
+
+Reconnect delays are checked
+    Run Keyword And Expect Error
+    ...    reconnect_delay_min must be at least 1 and no more than reconnect_delay_max, not 0 and 120.
+    ...    Connect    ${BROKER}    ${PORT}    reconnect_on_failure=${True}
+    ...    reconnect_delay_min=0
+
+An MQTT 5 session expiry out of range fails before connecting
+    Run Keyword And Expect Error
+    ...    session_expiry must be between 0 and 4294967295, not -1.
+    ...    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ...    session_expiry=-1
+
 A dropped connection reconnects and subscribes again
     Connect    ${BROKER}    ${PORT}    ${CLIENT}    reconnect_on_failure=${True}
     ...    reconnect_delay_min=2    alias=victim

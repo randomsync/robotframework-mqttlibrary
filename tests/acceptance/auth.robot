@@ -52,6 +52,14 @@ A wrong password on Connect fails with the broker's reason
     ...    Connect    ${BROKER}    ${AUTH PORT}    username=authuser1
     ...    password=invalidpwd
 
+An empty username connects without credentials
+    [Documentation]    Even after Set Username And Password, so the broker
+    ...    refuses the connection.
+    Set Username And Password    authuser1    password1
+    Run Keyword And Expect Error
+    ...    Connection to ${BROKER}:${AUTH PORT} failed: Not authorized
+    ...    Connect    ${BROKER}    ${AUTH PORT}    username=${EMPTY}
+
 A password without a username fails
     Run Keyword And Expect Error    password needs username.
     ...    Connect    ${BROKER}    ${AUTH PORT}    password=password1

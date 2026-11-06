@@ -51,8 +51,9 @@ The system CAs do not trust the test broker
     ...    Connect    ${BROKER}    ${TLS PORT}    tls=${True}
 
 Insecure connects without verifying the broker
-    Connect    ${BROKER}    ${TLS PORT}    ca_certs=${CERTS}/other-ca.crt
-    ...    insecure=${True}
+    [Documentation]    The system CAs do not trust the test broker, as the
+    ...    test above shows.
+    Connect    ${BROKER}    ${TLS PORT}    insecure=${True}
     Subscribe    ${TOPIC}    qos=1    timeout=0
     Publish    ${TOPIC}    unverified    qos=1
     Listen Should Return    ${TOPIC}    unverified
@@ -75,6 +76,12 @@ MQTT 5 works over TLS
 A plain connection to the TLS port fails
     Run Keyword And Expect Error    Connection to ${BROKER}:${TLS PORT} failed: *
     ...    Connect    ${BROKER}    ${TLS PORT}
+
+Insecure with a CA file fails before connecting
+    Run Keyword And Expect Error
+    ...    insecure skips verifying the broker, so ca_certs would have no effect.
+    ...    Connect    ${BROKER}    ${TLS PORT}    ca_certs=${CERTS}/ca.crt
+    ...    insecure=${True}
 
 A missing CA file fails before connecting
     Run Keyword And Expect Error
