@@ -62,6 +62,7 @@ log.html
 
 # Generated TLS certificates for the test brokers
 mosquitto/certs/
+mosquitto/certs.tmp/
 
 # Editor settings
 .vscode/

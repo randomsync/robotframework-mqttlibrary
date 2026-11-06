@@ -268,6 +268,7 @@ def test_connect_configures_the_client(lib, fake):
         "client_id": "me",
         "clean_session": False,
         "protocol": mqtt.MQTTv311,
+        "transport": "tcp",
         "reconnect_on_failure": False,
     }
     assert client.connect_timeout == 0.05

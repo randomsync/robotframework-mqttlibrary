@@ -9,6 +9,36 @@ Progress towards the next releases is tracked in
 
 ## [Unreleased]
 
+### Added
+
+- TLS on `Connect`: `tls`, `ca_certs`, `certfile`, `keyfile`,
+  `keyfile_password`, `tls_version`, `ciphers` and `insecure`. Mutual TLS
+  works with a client certificate ([#14](https://github.com/randomsync/robotframework-mqttlibrary/issues/14), [#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- MQTT over websockets on `Connect`: `transport=websockets`, `ws_path` and
+  `ws_headers`. The `transport` option carries forward
+  [PR #26](https://github.com/randomsync/robotframework-mqttlibrary/pull/26) by [@conrados](https://github.com/conrados)
+  ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `username` and `password` arguments on `Connect`. `username=${EMPTY}`
+  connects without credentials ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `protocol` on `Connect` selects MQTT 3.1, 3.1.1 or 5, and `clean_start`
+  and `session_expiry` control MQTT 5 sessions ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `reconnect_on_failure`, `reconnect_delay_min` and `reconnect_delay_max` on
+  `Connect`. A dropped connection reconnects in the background and
+  subscribes again to its topics if the broker did not keep the session.
+  `Listen` fails on a topic the broker refuses after reconnecting, and
+  `Disconnect` stops reconnecting without failing while the connection is
+  down ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `Set Last Will` gives the next `Connect` a last will ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- A TLS test broker with server TLS on port 8883 and mutual TLS on 8884.
+  `scripts/gen-certs.sh` creates its certificates, and `make brokers` runs it
+  ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+
+### Deprecated
+
+- `Set Username And Password` logs a deprecation warning. Pass `username`
+  and `password` to `Connect` instead. The keyword keeps working in 1.x and
+  will be removed in 2.0 ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+
 ## [1.0.0] - 2026-10-13
 
 The first stable release on paho-mqtt 2. It is 1.0.0rc1 with the

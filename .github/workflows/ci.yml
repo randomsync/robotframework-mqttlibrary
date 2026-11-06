@@ -61,13 +61,17 @@ jobs:
             python .github/check_docs.py docs/index.html
           fi
 
-      # Syntax errors fail the run; deprecation and other warnings fail the
-      # step.
+      # Syntax errors fail the run; warnings fail the step, except the one
+      # the deprecated Set Username And Password gives.
       - name: Dry-run the acceptance suites
         run: |
           set -o pipefail
           python -m robot --dryrun --output NONE --report NONE --log NONE tests/acceptance 2>&1 | tee "$RUNNER_TEMP/dryrun.txt"
-          if grep -q '\[ WARN \]' "$RUNNER_TEMP/dryrun.txt"; then
+          # Reads every line, so no grep exits early and pipefail sees no
+          # SIGPIPE.
+          others=$(grep '\[ WARN \]' "$RUNNER_TEMP/dryrun.txt" \
+            | grep -v "Keyword 'MQTTLibrary.Set Username And Password' is deprecated" || true)
+          if [ -n "$others" ]; then
             echo "::error::robot --dryrun printed warnings"
             exit 1
           fi
@@ -174,7 +178,9 @@ jobs:
         run: python -m coverage run -m pytest tests/unit
 
       - name: Start test brokers
-        run: docker compose up --wait --wait-timeout 60
+        run: |
+          scripts/gen-certs.sh
+          docker compose up --wait --wait-timeout 60
 
       - name: Run acceptance tests
         run: python -m coverage run -m robot --outputdir results tests/acceptance

@@ -37,6 +37,18 @@ class MQTTLibrary(MQTTKeywords):
     | ${messages}= | Listen | test/topic | timeout=5s | alias=sub |
     | [Teardown] | Disconnect All |
 
+    = Connect options =
+
+    `Connect` takes named arguments for credentials (``username``,
+    ``password``), TLS (``ca_certs``, ``certfile``, ``keyfile`` and others),
+    websockets (``transport=websockets``), MQTT 5 (``protocol=MQTTv5``,
+    ``clean_start``, ``session_expiry``) and reconnecting
+    (``reconnect_on_failure``). `Set Last Will` before `Connect` gives the
+    next connection a last will.
+
+    | Connect | broker.example.com | 8883 | ca_certs=${CURDIR}/ca.crt |
+    | ... | username=robot | password=secret |
+
     = Messages =
 
     Each connection queues the messages for each of its subscriptions from

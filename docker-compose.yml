@@ -1,4 +1,5 @@
-# Test brokers for the acceptance suite. Start with: docker compose up --wait
+# Test brokers for the acceptance suite. Start with: make brokers, which runs
+# scripts/gen-certs.sh for the tls broker and then docker compose up --wait.
 x-mosquitto-image: &mosquitto-image eclipse-mosquitto:2.1-alpine
 
 services:
@@ -36,6 +37,33 @@ services:
     # credentials. Wrong credentials show up as "Not authorized" in the tests.
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 1883 && nc -z 127.0.0.1 9001"]
+      # Probe every second while starting, then every 30s so the checks do
+      # not crowd the broker log.
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  tls:
+    image: *mosquitto-image
+    ports:
+      - "8883:8883"
+      - "8884:8884"
+    volumes:
+      - ./mosquitto/mosquitto-tls.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    # Subscribes over both listeners, so the check fails if the certificates
+    # are missing or do not verify.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt
+          -t '$$SYS/broker/version' -C 1 -W 3
+          && mosquitto_sub -h localhost -p 8884 --cafile /mosquitto/certs/ca.crt
+          --cert /mosquitto/certs/client.crt --key /mosquitto/certs/client.key
+          -t '$$SYS/broker/version' -C 1 -W 3
       # Probe every second while starting, then every 30s so the checks do
       # not crowd the broker log.
       start_period: 30s

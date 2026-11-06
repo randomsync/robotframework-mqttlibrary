@@ -32,3 +32,44 @@ Connecting without credentials is refused
     Run Keyword And Expect Error
     ...    Connection to ${BROKER}:${AUTH PORT} failed: Not authorized
     ...    Connect    ${BROKER}    ${AUTH PORT}
+
+Publish and subscribe with credentials on Connect
+    Connect    ${BROKER}    ${AUTH PORT}    username=authuser1
+    ...    password=password1
+    Subscribe    ${TOPIC}    qos=1    timeout=0
+    Publish    ${TOPIC}    with connect credentials    qos=1
+    Listen Should Return    ${TOPIC}    with connect credentials
+
+Credentials on Connect take precedence over Set Username And Password
+    Set Username And Password    authuser1    invalidpwd
+    Connect    ${BROKER}    ${AUTH PORT}    username=authuser2
+    ...    password=password2
+    Connected Should Be    ${True}
+
+A wrong password on Connect fails with the broker's reason
+    Run Keyword And Expect Error
+    ...    Connection to ${BROKER}:${AUTH PORT} failed: Not authorized
+    ...    Connect    ${BROKER}    ${AUTH PORT}    username=authuser1
+    ...    password=invalidpwd
+
+An empty username connects without credentials
+    [Documentation]    Even after Set Username And Password, so the broker
+    ...    refuses the connection.
+    Set Username And Password    authuser1    password1
+    Run Keyword And Expect Error
+    ...    Connection to ${BROKER}:${AUTH PORT} failed: Not authorized
+    ...    Connect    ${BROKER}    ${AUTH PORT}    username=${EMPTY}
+
+A password without a username fails
+    Run Keyword And Expect Error    password needs username.
+    ...    Connect    ${BROKER}    ${AUTH PORT}    password=password1
+
+A refused connect fails at once with reconnecting on
+    ${before}=    Evaluate    threading.active_count()    modules=threading
+    ${start}=    Evaluate    time.monotonic()    modules=time
+    Run Keyword And Expect Error    *Not authorized*
+    ...    Connect    ${BROKER}    ${AUTH PORT}    username=authuser1
+    ...    password=invalidpwd    reconnect_on_failure=${True}
+    ${elapsed}=    Evaluate    time.monotonic() - ${start}    modules=time
+    Should Be True    ${elapsed} < 5    Took ${elapsed} seconds
+    Thread Count Should Be    ${before}
