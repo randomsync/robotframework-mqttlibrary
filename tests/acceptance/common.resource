@@ -3,8 +3,12 @@ Documentation     Shared settings and keywords for the acceptance suites.
 ...
 ...               Broker addresses come from environment variables, so the
 ...               suites can run against another broker:
-...               ``MQTT_HOST``, ``MQTT_PORT`` (anonymous broker) and
-...               ``MQTT_AUTH_PORT`` (broker with authentication).
+...               ``MQTT_HOST``, ``MQTT_PORT`` (anonymous broker),
+...               ``MQTT_AUTH_PORT`` and ``MQTT_WS_PORT`` (broker with
+...               authentication, over TCP and websockets),
+...               ``MQTT_TLS_PORT`` and ``MQTT_MTLS_PORT`` (TLS broker, without
+...               and with client certificates) and ``MQTT_CERTS`` (the
+...               directory ``scripts/gen-certs.sh`` writes to).
 ...
 ...               The keywords here do not return values, and ``Evaluate``
 ...               expressions do not use ``$var`` syntax, so the suites run
@@ -17,6 +21,10 @@ Library           MQTTLibrary
 ${BROKER}         %{MQTT_HOST=127.0.0.1}
 ${PORT}           %{MQTT_PORT=1883}
 ${AUTH PORT}      %{MQTT_AUTH_PORT=11883}
+${WS PORT}        %{MQTT_WS_PORT=9001}
+${TLS PORT}       %{MQTT_TLS_PORT=8883}
+${MTLS PORT}      %{MQTT_MTLS_PORT=8884}
+${CERTS}          %{MQTT_CERTS=${CURDIR}/../../mosquitto/certs}
 
 *** Keywords ***
 Create Unique Topic
@@ -37,6 +45,21 @@ Thread Count Should Be
     [Arguments]    ${expected}
     ${count}=    Evaluate    threading.active_count()    modules=threading
     Should Be Equal As Integers    ${count}    ${expected}
+
+Connected Should Be
+    [Documentation]    Fails unless `Get Connection Info` reports
+    ...    ``connected`` as ``expected``.
+    [Arguments]    ${expected}    ${alias}=${None}
+    ${info}=    Get Connection Info    ${alias}
+    Should Be Equal    ${info}[connected]    ${expected}
+
+Take Over Session
+    [Documentation]    Connects with ``client`` and disconnects at once. The
+    ...    broker drops the connection that had the same client id, as if
+    ...    its network failed.
+    [Arguments]    ${client}
+    Connect    ${BROKER}    ${PORT}    ${client}    alias=thief
+    [Teardown]    Disconnect    thief
 
 Open Persistent Session
     [Documentation]    Creates a persistent session for ``client`` that is

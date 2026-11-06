@@ -5,8 +5,9 @@ paho runs the network loop in a background thread (``loop_start()``), so the
 callbacks below run on that thread while keywords run on Robot Framework's
 main thread. Everything the two share is guarded by ``self._cond``, one
 ``threading.Condition`` per connection. Callbacks only update state and
-notify; they never log, because Robot Framework ignores log messages from
-other threads. Keyword-side methods never call into paho while holding
+notify, except that ``_on_connect`` renews subscriptions after a reconnect.
+They never log, because Robot Framework ignores log messages from other
+threads. Keyword-side methods never call into paho while holding
 ``self._cond``: paho takes its own locks around callbacks, so doing so could
 deadlock.
 """
@@ -18,6 +19,8 @@ import threading
 import time
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
 from robot.api import logger
 
 # The most messages a queue holds. When a queue is full the oldest message is
@@ -64,17 +67,38 @@ class _Connection(object):
         timeout,
         username=None,
         password=None,
+        *,
+        protocol=mqtt.MQTTv311,
+        transport="tcp",
+        ws_path=None,
+        ws_headers=None,
+        tls=None,
+        will=None,
+        reconnect=None,
+        clean_start=None,
+        session_expiry=None,
     ):
+        """``tls`` is an ``ssl.SSLContext``, ``will`` a (topic, payload,
+        qos, retain) tuple and ``reconnect`` a (min, max) tuple of delays in
+        seconds that turns reconnecting on. ``clean_start`` and
+        ``session_expiry`` are for MQTT 5 only, and ``clean_session`` is
+        ignored with it."""
         self.alias = alias
         self.host = host
         self.port = port
-        self.protocol = mqtt.MQTTv311
+        self.protocol = protocol
         self.keepalive = keepalive
         self.timeout = timeout
         self.address = "%s:%s" % (host, port)
+        self.reconnect = reconnect is not None
+        self._clean_start = clean_start
+        self._session_expiry = session_expiry
 
         self._cond = threading.Condition()
         self._filters = {}
+        # The QoS of each acknowledged subscription, to subscribe again after
+        # a reconnect.
+        self._qos = {}
         self._unclaimed = _Queue()
         self._duplicates = None
         self._acks = {}
@@ -83,17 +107,18 @@ class _Connection(object):
         self._disconnect_reason = None
         self._thread = None
 
-        # reconnect_on_failure must be False: with the background loop and
-        # paho's default, a refused connection retries forever instead of
-        # failing the keyword. paho raises ValueError here for an empty
+        # reconnect_on_failure is False unless asked for, unlike paho's
+        # default. Either way open() fails on a refused first connection,
+        # because it stops the loop. paho raises ValueError here for an empty
         # client id with clean_session=False; that message is the keyword
-        # failure.
+        # failure. paho requires clean_session None with MQTT 5.
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=client_id,
-            clean_session=clean_session,
-            protocol=self.protocol,
-            reconnect_on_failure=False,
+            clean_session=None if protocol == mqtt.MQTTv5 else clean_session,
+            protocol=protocol,
+            transport=transport,
+            reconnect_on_failure=self.reconnect,
         )
         self.client.enable_logger(PAHO_LOGGER)
         # Bounds the TCP connect in client.connect(), so an unreachable host
@@ -101,6 +126,14 @@ class _Connection(object):
         self.client.connect_timeout = timeout
         if username:
             self.client.username_pw_set(username, password)
+        if transport == "websockets":
+            self.client.ws_set_options(path=ws_path or "/mqtt", headers=ws_headers)
+        if tls is not None:
+            self.client.tls_set_context(tls)
+        if will is not None:
+            self.client.will_set(*will)
+        if reconnect is not None:
+            self.client.reconnect_delay_set(*reconnect)
 
         # on_message is set before connecting, so messages the broker sends
         # right after CONNACK are queued, not lost.
@@ -135,12 +168,19 @@ class _Connection(object):
 
     def open(self):
         """Connect, start the network loop and wait for CONNACK."""
+        options = {}
+        if self._clean_start is not None:
+            options["clean_start"] = self._clean_start
+        if self._session_expiry is not None:
+            properties = Properties(PacketTypes.CONNECT)
+            properties.SessionExpiryInterval = self._session_expiry
+            options["properties"] = properties
         try:
-            self.client.connect(self.host, self.port, self.keepalive)
+            self.client.connect(self.host, self.port, self.keepalive, **options)
         except (OSError, UnicodeError) as exc:
-            # OSError covers refused, unreachable and unresolvable hosts.
-            # UnicodeError comes from the IDNA encoding of a malformed name
-            # such as 172..0.0.1.
+            # OSError covers refused, unreachable and unresolvable hosts, and
+            # TLS and websockets handshake failures. UnicodeError comes from
+            # the IDNA encoding of a malformed name such as 172..0.0.1.
             raise RuntimeError(
                 "Connection to %s failed: %s" % (self.address, exc)
             ) from None
@@ -231,6 +271,8 @@ class _Connection(object):
             failures = [code for code in codes if code.is_failure]
             if failures:
                 raise RuntimeError("Subscribe to %s failed: %s" % (topic, failures[0]))
+            with self._cond:
+                self._qos[topic] = qos
         except Exception:
             if created:
                 # Keeps what register() took from the unclaimed queue, so a
@@ -260,15 +302,15 @@ class _Connection(object):
         Waits until ``limit`` messages are queued, the connection is lost, or
         ``timeout`` elapses. With ``limit`` 0, waits the whole timeout and
         returns everything. Returns None if ``topic`` is not a registered
-        filter. Fails if the connection is lost and nothing is queued.
+        filter. Fails if the connection is lost and nothing is queued, unless
+        reconnecting is on.
         """
         with self._cond:
             queue = self._filters.get(topic)
             if queue is None:
                 return None
 
-            def lost():
-                return self._disconnect_reason is not None
+            lost = self._gone
 
             if limit > 0:
                 self._cond.wait_for(lambda: len(queue) >= limit or lost(), timeout)
@@ -299,8 +341,8 @@ class _Connection(object):
 
         Returns True on a match. Returns False if none arrives within
         ``timeout``, and raises AssertionError if the connection is lost
-        first. Messages that do not match, including ones that are not valid
-        UTF-8, are consumed.
+        first and reconnecting is off. Messages that do not match, including
+        ones that are not valid UTF-8, are consumed.
         """
         deadline = time.monotonic() + timeout
         with self._cond:
@@ -314,7 +356,7 @@ class _Connection(object):
                         continue
                     if re.match(pattern, payload):
                         return True
-                if self._disconnect_reason is not None:
+                if self._gone():
                     raise AssertionError(
                         "The expected payload didn't arrive "
                         "in the topic%s" % self._lost()
@@ -354,6 +396,7 @@ class _Connection(object):
         """
         with self._cond:
             queue = self._filters.pop(topic, None)
+            self._qos.pop(topic, None)
             if keep_messages and queue:
                 # The returned messages are the oldest, so when the unclaimed
                 # queue is full the oldest go, as with any other overflow.
@@ -391,6 +434,12 @@ class _Connection(object):
             )
             queue.dropped = 0
 
+    def _gone(self):
+        """True if the connection is lost and will not come back by itself.
+        With reconnecting on, a lost connection may come back, so waits
+        continue until their timeout. Holds the lock."""
+        return self._disconnect_reason is not None and not self.reconnect
+
     def _lost(self):
         reason = self._disconnect_reason
         if reason is None:
@@ -419,8 +468,23 @@ class _Connection(object):
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         with self._cond:
+            # After a reconnect, the broker has no subscriptions unless it
+            # kept the session. On the first CONNACK there are none yet.
+            resubscribe = []
+            if not reason_code.is_failure:
+                self._disconnect_reason = None
+                if self._connack is not None and not flags.session_present:
+                    resubscribe = list(self._qos.items())
             self._connack = reason_code
             self._cond.notify_all()
+        if resubscribe:
+            # Outside the lock, like every call into paho. Nobody waits for
+            # this SUBACK, so it is discarded like a late one.
+            rc, mid = client.subscribe(resubscribe)
+            if rc == mqtt.MQTT_ERR_SUCCESS:
+                with self._cond:
+                    if self._acks.pop(mid, None) is None:
+                        self._abandoned[mid] = time.monotonic()
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         with self._cond:

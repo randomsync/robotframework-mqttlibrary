@@ -103,3 +103,100 @@ Disconnect stops the network thread
 Disconnect without a connection does nothing
     Disconnect
     Disconnect    alias=never
+
+Connect with MQTT 5
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ${info}=    Get Connection Info
+    Should Be Equal    ${info}[protocol]    MQTTv5
+    Subscribe    ${TOPIC}    qos=1    timeout=0
+    Publish    ${TOPIC}    over mqtt 5    qos=1
+    Listen Should Return    ${TOPIC}    over mqtt 5
+
+Connect with a protocol number
+    Connect    ${BROKER}    ${PORT}    protocol=3
+    ${info}=    Get Connection Info
+    Should Be Equal    ${info}[protocol]    MQTTv31
+
+An unknown protocol fails
+    Run Keyword And Expect Error    Unknown MQTT protocol version: MQTTv6*
+    ...    Connect    ${BROKER}    ${PORT}    protocol=MQTTv6
+
+An MQTT 5 session with an expiry outlives the connection
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ...    clean_start=${False}    session_expiry=60    alias=session
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=session
+    Disconnect    session
+    Publish And Disconnect    ${TOPIC}    kept for the session    qos=1
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ...    clean_start=${False}    session_expiry=0    alias=session
+    @{messages}=    Subscribe    ${TOPIC}    qos=1    timeout=5    alias=session
+    Lists Should Be Equal    ${messages}    ${{["kept for the session"]}}
+
+An MQTT 5 session without an expiry ends with the connection
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ...    clean_start=${False}    alias=session
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=session
+    Disconnect    session
+    Publish And Disconnect    ${TOPIC}    nobody keeps this    qos=1
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    protocol=MQTTv5
+    ...    clean_start=${False}    alias=session
+    @{messages}=    Subscribe    ${TOPIC}    qos=1    timeout=1s    alias=session
+    Should Be Empty    ${messages}
+
+MQTT 5 with clean_session false points to clean_start
+    Run Keyword And Expect Error
+    ...    clean_session applies to MQTT 3.1 and 3.1.1. With MQTTv5, use clean_start=\${False}*
+    ...    Connect    ${BROKER}    ${PORT}    ${CLIENT}    ${False}
+    ...    protocol=MQTTv5
+
+Session options need MQTT 5
+    Run Keyword And Expect Error
+    ...    clean_start and session_expiry need protocol=MQTTv5.
+    ...    Connect    ${BROKER}    ${PORT}    ${CLIENT}    clean_start=${False}
+
+The broker publishes the last will when the connection drops
+    Connect    ${BROKER}    ${PORT}    alias=watcher
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=watcher
+    Set Last Will    ${TOPIC}    gone    qos=1
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    alias=victim
+    Take Over Session    ${CLIENT}
+    Listen Should Return    ${TOPIC}    gone    alias=watcher
+    Run Keyword And Expect Error    The client disconnected unexpectedly: *
+    ...    Disconnect    victim
+
+The last will is not published after Disconnect
+    Connect    ${BROKER}    ${PORT}    alias=watcher
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=watcher
+    Set Last Will    ${TOPIC}    gone    qos=1
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    alias=leaver
+    Disconnect    leaver
+    Listen Should Return    ${TOPIC}    timeout=1s    alias=watcher
+
+The last will applies only to the next Connect
+    Connect    ${BROKER}    ${PORT}    alias=watcher
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=watcher
+    Set Last Will    ${TOPIC}    first only    qos=1
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}-first    alias=first
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}-second    alias=second
+    Take Over Session    ${CLIENT}-second
+    Listen Should Return    ${TOPIC}    timeout=1s    alias=watcher
+    Run Keyword And Expect Error    The client disconnected unexpectedly: *
+    ...    Disconnect    second
+
+A last will topic with a wildcard fails
+    Run Keyword And Expect Error
+    ...    The last will topic must be a topic name without wildcards, not '${TOPIC}/#'.
+    ...    Set Last Will    ${TOPIC}/#    gone
+
+A dropped connection reconnects and subscribes again
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    reconnect_on_failure=${True}
+    ...    reconnect_delay_min=2    alias=victim
+    Subscribe    ${TOPIC}    qos=1    timeout=0    alias=victim
+    Connect    ${BROKER}    ${PORT}    ${CLIENT}    alias=thief
+    Wait Until Keyword Succeeds    2s    0.05s
+    ...    Connected Should Be    ${False}    victim
+    Disconnect    thief
+    Wait Until Keyword Succeeds    10s    0.2s
+    ...    Connected Should Be    ${True}    victim
+    Publish And Disconnect    ${TOPIC}    after reconnecting    qos=1
+    Listen Should Return    ${TOPIC}    after reconnecting    alias=victim

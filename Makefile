@@ -19,9 +19,10 @@ $(STAMP): pyproject.toml
 	$(BIN)/python -m pip install --quiet -e ".[dev]"
 	touch $@
 
-# Start the test brokers from docker-compose.yml and wait until they are
-# healthy.
+# Create the TLS broker's certificates if they are missing, then start the
+# test brokers from docker-compose.yml and wait until they are healthy.
 brokers:
+	scripts/gen-certs.sh
 	docker compose up --wait --wait-timeout 60
 
 # Unit and acceptance tests under coverage, then the coverage report with the
@@ -54,8 +55,11 @@ lint: $(STAMP)
 	$(BIN)/python -m robot --dryrun --output NONE --report NONE --log NONE \
 		tests/acceptance > $(RESULTS)/dryrun.txt 2>&1; \
 		status=$$?; cat $(RESULTS)/dryrun.txt; test $$status -eq 0
-	@if grep -q '\[ WARN \]' $(RESULTS)/dryrun.txt; then \
-		echo "robot --dryrun printed warnings"; exit 1; fi
+	@# The auth suite still tests Set Username And Password, which warns that
+	@# it is deprecated; any other warning fails.
+	@if grep '\[ WARN \]' $(RESULTS)/dryrun.txt \
+		| grep -qv "Keyword 'MQTTLibrary.Set Username And Password' is deprecated"; \
+		then echo "robot --dryrun printed warnings"; exit 1; fi
 
 clean:
 	docker compose down -v

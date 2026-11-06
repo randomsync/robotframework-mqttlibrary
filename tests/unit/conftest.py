@@ -35,7 +35,12 @@ class FakeClient(object):
         self.connect_timeout = None
         self.credentials = None
         self.connect_args = None
+        self.connect_options = None
         self.connect_error = None
+        self.tls_context = None
+        self.ws_options = None
+        self.will = None
+        self.reconnect_delays = None
         self.connack = reason(PacketTypes.CONNACK, "Success")
         self.suback = [reason(PacketTypes.SUBACK, "Granted QoS 1")]
         self.unsuback = [reason(PacketTypes.UNSUBACK, "Success")]
@@ -66,8 +71,21 @@ class FakeClient(object):
     def username_pw_set(self, username, password=None):
         self.credentials = (username, password)
 
-    def connect(self, host, port, keepalive):
+    def tls_set_context(self, context):
+        self.tls_context = context
+
+    def ws_set_options(self, path, headers):
+        self.ws_options = (path, headers)
+
+    def will_set(self, topic, payload, qos, retain):
+        self.will = (topic, payload, qos, retain)
+
+    def reconnect_delay_set(self, min_delay, max_delay):
+        self.reconnect_delays = (min_delay, max_delay)
+
+    def connect(self, host, port, keepalive, **options):
         self.connect_args = (host, port, keepalive)
+        self.connect_options = options
         if self.connect_error is not None:
             raise self.connect_error
 
@@ -77,7 +95,7 @@ class FakeClient(object):
         self._thread = self.loop_thread
         self.loop_thread.start()
         if self.connack is not None:
-            self.on_connect(self, None, None, self.connack, None)
+            self.fire_connect(self.connack)
 
     def _loop_forever(self):
         # Runs until the library sets _thread_terminate, like paho's loop.
@@ -96,7 +114,7 @@ class FakeClient(object):
         if self.disconnect_reason is not None:
             self.fire_disconnect(self.disconnect_reason)
 
-    def subscribe(self, topic, qos):
+    def subscribe(self, topic, qos=0):
         mid = self._next_mid()
         self.subscriptions.append((topic, qos))
         if self.subscribe_rc == mqtt.MQTT_ERR_SUCCESS and self.suback:
@@ -127,6 +145,10 @@ class FakeClient(object):
         message.payload = payload
         message.qos = qos
         self.on_message(self, None, message)
+
+    def fire_connect(self, reason_code, session_present=False):
+        flags = mqtt.ConnectFlags(session_present=session_present)
+        self.on_connect(self, None, flags, reason_code, None)
 
     def fire_disconnect(self, reason_code):
         self.on_disconnect(self, None, None, reason_code, None)

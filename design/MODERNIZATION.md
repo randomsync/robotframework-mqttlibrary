@@ -223,8 +223,9 @@ extra.
 All additive; 1.0 keywords keep their signatures and return types.
 
 - **Connect options:** `protocol=`, `transport=websockets`, `ws_path=`,
-  `ws_headers=`, `username=`, `password=`, TLS (`ca_certs=`, `certfile=`,
-  `keyfile=`, `keyfile_password=`, `tls_version=`, `ciphers=`, `insecure=`),
+  `ws_headers=`, `username=`, `password=`, TLS (`tls=`, `ca_certs=`,
+  `certfile=`, `keyfile=`, `keyfile_password=`, `tls_version=`, `ciphers=`,
+  `insecure=`; see section 8, row 23),
   `clean_start=`, `session_expiry=`, `reconnect_on_failure=` and reconnect
   delays. `Set Last Will` before Connect. Closes #14; carries forward the
   `transport=` option from PR #26.
@@ -340,6 +341,11 @@ CHANGELOG entries.
 | 20 | `docs/index.html` is regenerated only in release PRs | Regenerated once between 1.0.0rc1 and 1.0.0, for a docstring-only change: the library intro now tells 0.7 users where their docs are. The 0.7.2 docs are generated from the released package and published under `docs/0.7/` | GitHub Pages serves `master/docs`, so the site showed 1.0 docs while `pip install` still gave 0.7.2 | #62 |
 | 21 | Close PRs #23, #26 and #27 at 1.1.0, crediting each contributor in the CHANGELOG of the release that carries their idea | PR #27 (background loop) is closed at 1.0.0 and credited in the 1.0.0 CHANGELOG section. PR #23 was already closed, and its author's account no longer exists. PR #26 (websockets) stays open for 1.1.0 | The background loop shipped in 1.0, and the 1.0.0rc1 notes left out the credit | #63 |
 | 22 | Close #34, #29, #25, #33, #28, #24 and #30 at 1.0.0 | Same. The #47 task list had left out #30, and was edited to add it | #30 asks for access to contribute; the answer is the "How to help" section of #39, so it closes with that pointer | #63 |
+| 23 | TLS through paho's `tls_set()`: `ca_certs`, `certfile`, `keyfile`, `keyfile_password`, `tls_version`, `ciphers`, and `insecure` | A `tls=${True}` argument as well, which verifies the broker against the system's trusted CAs; any TLS argument turns TLS on. The library builds the SSL context itself: `tls_version` takes `TLSv1.2` or `TLSv1.3` and allows only that version, and `insecure` skips certificate verification altogether | Brokers with publicly trusted certificates need TLS without a CA file. paho's `tls_version` takes `ssl.PROTOCOL_*` numbers, and the per-version ones are deprecated. paho's `tls_insecure_set()` skips only the host name check, so the planned "`insecure=${True}` against a wrong CA" test could not pass | #65 |
+| 24 | `Set Last Will` applies to the next Connect | It applies to the next Connect that succeeds, whatever its alias, so a retried Connect keeps it. `${None}` clears it. Wildcard topics and a QoS outside 0-2 fail in `Set Last Will` | A refused Connect sent no will that could fire, so dropping the will there would surprise a retry | #65 |
+| 25 | `reconnect_on_failure=` and reconnect delays passed to paho | Passed to paho as planned. In addition, after a reconnect the connection subscribes again to its topics unless the broker kept the session, and `Listen` and `Subscribe And Validate` wait through the outage instead of failing at once | paho does not restore subscriptions, so with a clean session a reconnected connection would silently receive nothing | #65 |
+| 26 | `auth.robot` asserts the deprecation WARN of `Set Username And Password` | Robot Framework's own `*DEPRECATED*` doc marker produces the warning, and libdoc marks the keyword. A pytest test runs a one-keyword suite and checks the warning text. The lint dry run ignores that one warning, which the 1.0 auth tests now print | A Robot suite cannot check the warnings it logs. The 1.0 auth tests must keep passing unchanged, and they still use the keyword | #65 |
+| 27 | `websockets.robot` has a `ws_path=/mqtt` negative case | The negative cases are a TCP client on the websockets port, wrong credentials, and `ws_path` without websockets. The suite runs on the authenticated broker's websockets listener, with credentials on Connect | Mosquitto accepts a websockets handshake on any path | #65 |
 
 ## 9. Credits
 
