@@ -29,6 +29,18 @@ Progress towards the next releases is tracked in
   `Disconnect` stops reconnecting without failing while the connection is
   down ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
 - `Set Last Will` gives the next `Connect` a last will ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `Get Messages` returns message objects with `topic`, `payload`, `qos`,
+  `retain`, `properties` and `timestamp`, so the messages of a wildcard
+  subscription can be told apart by topic ([#32](https://github.com/randomsync/robotframework-mqttlibrary/issues/32),
+  [#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `decode=${False}` on `Subscribe`, `Listen` and `Get Messages` returns
+  payloads as bytes, for binary payloads such as Protocol Buffers
+  ([#31](https://github.com/randomsync/robotframework-mqttlibrary/issues/31), [#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `Clear Messages` empties one queue or all of a connection's queues
+  ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- A `max_queue` library argument sets how many messages each queue keeps
+  (default 10000) ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- `Publish` returns the message id ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
 - A TLS test broker with server TLS on port 8883 and mutual TLS on 8884.
   `scripts/gen-certs.sh` creates its certificates, and `make brokers` runs it
   ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).

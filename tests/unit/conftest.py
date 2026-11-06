@@ -143,12 +143,14 @@ class FakeClient(object):
 
     # Broker-side events.
 
-    def fire_message(self, topic, payload, qos=0):
+    def fire_message(self, topic, payload, qos=0, retain=False, properties=None):
         message = mqtt.MQTTMessage(topic=topic.encode())
         if isinstance(payload, str):
             payload = payload.encode()
         message.payload = payload
         message.qos = qos
+        message.retain = retain
+        message.properties = properties
         self.on_message(self, None, message)
 
     def fire_connect(self, reason_code, session_present=False):

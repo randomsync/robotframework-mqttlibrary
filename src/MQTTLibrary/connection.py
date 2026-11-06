@@ -13,18 +13,21 @@ deadlock.
 """
 
 import collections
+import dataclasses
 import logging
 import re
 import threading
 import time
+from typing import Union
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 from robot.api import logger
 
-# The most messages a queue holds. When a queue is full the oldest message is
-# dropped, and the next Listen on that filter warns. The unclaimed queue holds
+# The most messages a queue holds by default; the library's max_queue
+# argument changes it. When a queue is full the oldest message is dropped,
+# and the next Listen on that filter warns. The unclaimed queue holds
 # messages that match no registered filter, for example persistent-session
 # messages the broker delivers between CONNACK and SUBSCRIBE, until a
 # Subscribe claims them.
@@ -42,11 +45,30 @@ PAHO_LOGGER = logging.getLogger("MQTTLibrary.paho")
 ABANDONED_ACK_SECONDS = 60
 
 
+@dataclasses.dataclass(frozen=True)
+class Message:
+    """A received message.
+
+    The queues hold ``payload`` as bytes; keywords return it decoded as
+    UTF-8 unless asked for bytes. ``properties`` maps MQTT 5 property names,
+    such as ``ContentType`` or ``UserProperty``, to their values, and is
+    empty for earlier protocol versions. ``timestamp`` is when the message
+    arrived, in seconds since the epoch.
+    """
+
+    topic: str
+    payload: Union[bytes, str]
+    qos: int
+    retain: bool
+    properties: dict
+    timestamp: float
+
+
 class _Queue(collections.deque):
     """A bounded message queue that counts the messages it dropped."""
 
-    def __init__(self, messages=()):
-        super().__init__(messages, maxlen=QUEUE_LIMIT)
+    def __init__(self, maxlen):
+        super().__init__(maxlen=maxlen)
         self.dropped = 0
 
     def put(self, message):
@@ -77,12 +99,13 @@ class _Connection(object):
         reconnect=None,
         clean_start=None,
         session_expiry=None,
+        max_queue=QUEUE_LIMIT,
     ):
         """``tls`` is an ``ssl.SSLContext``, ``will`` a (topic, payload,
         qos, retain) tuple and ``reconnect`` a (min, max) tuple of delays in
         seconds that turns reconnecting on. ``clean_start`` and
         ``session_expiry`` are for MQTT 5 only, and ``clean_session`` is
-        ignored with it."""
+        ignored with it. ``max_queue`` bounds every message queue."""
         self.alias = alias
         self.host = host
         self.port = port
@@ -93,6 +116,7 @@ class _Connection(object):
         self.reconnect = reconnect is not None
         self._clean_start = clean_start
         self._session_expiry = session_expiry
+        self.max_queue = max_queue
 
         self._cond = threading.Condition()
         self._filters = {}
@@ -104,7 +128,7 @@ class _Connection(object):
         # topic -> reason code.
         self._renewals = {}
         self._refused = {}
-        self._unclaimed = _Queue()
+        self._unclaimed = _Queue(max_queue)
         self._duplicates = None
         self._acks = {}
         self._abandoned = {}
@@ -256,6 +280,7 @@ class _Connection(object):
         return confirmed and stopped
 
     def publish(self, topic, payload, qos, retain):
+        """Publish and wait for the acknowledgement. Returns the mid."""
         info = self.client.publish(topic, payload, qos, retain)
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             raise RuntimeError(
@@ -268,6 +293,7 @@ class _Connection(object):
                 "Publish to %s not acknowledged within %s "
                 "seconds%s" % (topic, self.timeout, self._lost())
             )
+        return info.mid
 
     def subscribe(self, topic, qos):
         """Register ``topic`` as a filter, subscribe and wait for SUBACK."""
@@ -314,8 +340,10 @@ class _Connection(object):
         finally:
             self.unregister(topic)
 
-    def listen(self, topic, timeout, limit):
-        """Return up to ``limit`` of the oldest messages on ``topic``.
+    def listen(self, topic, timeout, limit, decode=True):
+        """Return up to ``limit`` of the oldest messages on ``topic``, as
+        Message objects with their payloads decoded as UTF-8, or as bytes
+        without ``decode``.
 
         Waits until ``limit`` messages are queued, the connection is lost, or
         ``timeout`` elapses. With ``limit`` 0, waits the whole timeout and
@@ -349,14 +377,18 @@ class _Connection(object):
             # the good ones with it.
             messages = []
             for index in range(count):
-                try:
-                    messages.append(_decode(queue[index]))
-                except UnicodeDecodeError as exc:
-                    del queue[index]
-                    raise RuntimeError(
-                        "Dropped a message on %s that is not "
-                        "valid UTF-8: %s" % (topic, exc)
-                    ) from None
+                message = queue[index]
+                if decode:
+                    try:
+                        message = dataclasses.replace(message, payload=_decode(message))
+                    except UnicodeDecodeError as exc:
+                        del queue[index]
+                        raise RuntimeError(
+                            "Dropped a message on %s that is not valid UTF-8: "
+                            "%s. Use decode=${False} to get payloads as bytes."
+                            % (topic, exc)
+                        ) from None
+                messages.append(message)
             for _ in range(count):
                 queue.popleft()
             return messages
@@ -391,6 +423,25 @@ class _Connection(object):
                     return False
                 self._cond.wait(remaining)
 
+    def clear(self, topic=None):
+        """Drop the messages queued for ``topic``, or without a topic every
+        queued message, including those that match no filter. Returns how
+        many were dropped, or None if ``topic`` is not a registered filter.
+        """
+        with self._cond:
+            if topic is None:
+                queues = list(self._filters.values()) + [self._unclaimed]
+            elif topic in self._filters:
+                queues = [self._filters[topic]]
+            else:
+                return None
+            count = 0
+            for queue in queues:
+                count += len(queue)
+                queue.clear()
+                queue.dropped = 0
+            return count
+
     def register(self, topic):
         """Start queueing messages that match ``topic``.
 
@@ -402,7 +453,7 @@ class _Connection(object):
             if topic in self._filters:
                 return False
             self._warn_dropped(None, self._unclaimed)
-            queue = self._filters[topic] = _Queue()
+            queue = self._filters[topic] = _Queue(self.max_queue)
             unclaimed = []
             for message in self._unclaimed:
                 if mqtt.topic_matches_sub(topic, message.topic):
@@ -427,7 +478,7 @@ class _Connection(object):
                 # The returned messages are the oldest, so when the unclaimed
                 # queue is full the oldest go, as with any other overflow.
                 messages = list(queue) + list(self._unclaimed)
-                overflow = max(0, len(messages) - QUEUE_LIMIT)
+                overflow = max(0, len(messages) - self.max_queue)
                 self._unclaimed.dropped += overflow
                 self._unclaimed.clear()
                 self._unclaimed.extend(messages[overflow:])
@@ -456,7 +507,7 @@ class _Connection(object):
             where = "on %s" % topic if topic else "that matched no filter"
             logger.warn(
                 "%d messages %s were dropped because more than %d "
-                "were queued" % (queue.dropped, where, QUEUE_LIMIT)
+                "were queued" % (queue.dropped, where, queue.maxlen)
             )
             queue.dropped = 0
 
@@ -559,7 +610,15 @@ class _Connection(object):
         # goes into every matching queue, and the identical copies that follow
         # it directly are dropped, so each filter gets the message once
         # either way.
-        key = (message.topic, message.payload, message.retain)
+        received = Message(
+            topic=message.topic,
+            payload=bytes(message.payload),
+            qos=message.qos,
+            retain=bool(message.retain),
+            properties=_properties(message.properties),
+            timestamp=time.time(),
+        )
+        key = (received.topic, received.payload, received.retain)
         with self._cond:
             duplicates, self._duplicates = self._duplicates, None
             if duplicates is not None and duplicates[0] == key:
@@ -569,12 +628,12 @@ class _Connection(object):
             matched = [
                 queue
                 for topic, queue in self._filters.items()
-                if mqtt.topic_matches_sub(topic, message.topic)
+                if mqtt.topic_matches_sub(topic, received.topic)
             ]
             for queue in matched:
-                queue.put(message)
+                queue.put(received)
             if not matched:
-                self._unclaimed.put(message)
+                self._unclaimed.put(received)
             if len(matched) > 1:
                 self._duplicates = (key, len(matched) - 1)
             self._cond.notify_all()
@@ -582,6 +641,21 @@ class _Connection(object):
 
 def _decode(message):
     return message.payload.decode("utf-8")
+
+
+def _properties(properties):
+    """The MQTT 5 properties paho received, as a dict of the ones present.
+
+    Like paho's Properties.json(), but CorrelationData stays bytes.
+    """
+    if properties is None:
+        return {}
+    present = {}
+    for name in properties.names:
+        name = name.replace(" ", "")
+        if hasattr(properties, name):
+            present[name] = getattr(properties, name)
+    return present
 
 
 def _error_name(rc):

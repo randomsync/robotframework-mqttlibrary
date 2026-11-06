@@ -7,7 +7,7 @@ import paho.mqtt.publish as publish
 from robot.api import logger
 from robot.libraries.DateTime import convert_time
 
-from MQTTLibrary.connection import _Connection
+from MQTTLibrary.connection import QUEUE_LIMIT, _Connection
 
 # paho 2 defines the protocol versions as an IntEnum. A plain int default keeps
 # Robot Framework converting the argument as an int, as it did with paho 1.
@@ -126,16 +126,25 @@ class MQTTKeywords(object):
     # unexpected/unhandled errors
     LOOP_TIMEOUT = "5 seconds"
 
-    def __init__(self, loop_timeout=LOOP_TIMEOUT):
+    def __init__(self, loop_timeout=LOOP_TIMEOUT, max_queue: int = QUEUE_LIMIT):
         """``loop_timeout`` bounds every wait for the broker: the TCP connect
         and CONNACK in `Connect`, the acknowledgements in `Publish`,
         `Subscribe` and `Unsubscribe`, and the disconnect in `Disconnect`.
         It is a Robot Framework time string or a number of seconds. Default
         5 seconds.
 
+        ``max_queue`` is the most messages each subscription of a connection
+        keeps queued, and the most it keeps that match no subscription yet.
+        When a queue is full, the oldest message is dropped and the next read
+        warns. Default 10000.
+
         | Library | MQTTLibrary | loop_timeout=10 seconds |
+        | Library | MQTTLibrary | max_queue=100 |
         """
+        if max_queue < 1:
+            raise ValueError("max_queue must be at least 1, not %s." % max_queue)
         self._loop_timeout = convert_time(loop_timeout)
+        self._max_queue = max_queue
         self._connections = {}
         self._alias = DEFAULT_ALIAS
         self._username = None
@@ -478,6 +487,7 @@ class MQTTKeywords(object):
             ),
             clean_start=clean_start,
             session_expiry=session_expiry,
+            max_queue=self._max_queue,
         )
         conn.open()
         self._connections[alias] = conn
@@ -524,12 +534,12 @@ class MQTTKeywords(object):
         qos: int = 0,
         retain: bool = False,
         alias: Optional[str] = None,
-    ):
+    ) -> int:
         """Publish a message to a topic with specified qos and retained flag.
         It is required that a connection has been established using `Connect`
         keyword before using this keyword. Waits until the message is sent
         (qos 0) or acknowledged (qos 1 and 2), and fails if it is not within
-        the library's ``loop_timeout``.
+        the library's ``loop_timeout``. Returns the message id.
 
         ``topic`` topic to which the message will be published
 
@@ -545,12 +555,13 @@ class MQTTKeywords(object):
         Examples:
 
         | Publish | test/test | test message | 1 | ${false} |
+        | ${mid}= | Publish | test/test | ${{bytes([0, 255])}} | qos=1 |
         """
         logger.info(
             "Publish topic: %s, message: %s, qos: %s, retain: %s"
             % (topic, message, qos, retain)
         )
-        self._connection(alias).publish(topic, message, qos, retain)
+        return self._connection(alias).publish(topic, message, qos, retain)
 
     def subscribe(
         self,
@@ -559,6 +570,8 @@ class MQTTKeywords(object):
         timeout: timedelta = "1 second",
         limit: int = 1,
         alias: Optional[str] = None,
+        *,
+        decode: bool = True,
     ) -> list:
         """Subscribe to a topic and return a list of message payloads
         received within the specified time. Waits for the broker to
@@ -579,6 +592,10 @@ class MQTTKeywords(object):
 
         ``alias`` the connection to use (see `Connect`)
 
+        ``decode`` returns payloads as strings decoded as UTF-8 (default).
+        ``${False}`` returns them as bytes, for binary payloads. Must be
+        given by name.
+
         Examples:
 
         Subscribe and get a list of all messages received within 5 seconds
@@ -590,6 +607,9 @@ class MQTTKeywords(object):
 
         Subscribe now and read the messages later
         | Subscribe | test/test | qos=1 | timeout=0 |
+
+        Subscribe and get binary payloads as bytes
+        | ${payloads}= | Subscribe | test/raw | qos=1 | timeout=5 | decode=${False} |
         """
         seconds = _seconds(timeout)
         conn = self._connection(alias)
@@ -597,7 +617,7 @@ class MQTTKeywords(object):
         conn.subscribe(topic, qos)
         if seconds == 0:
             return []
-        return conn.listen(topic, seconds, limit)
+        return [m.payload for m in conn.listen(topic, seconds, limit, decode)]
 
     def listen(
         self,
@@ -605,10 +625,13 @@ class MQTTKeywords(object):
         timeout: timedelta = "1 second",
         limit: int = 1,
         alias: Optional[str] = None,
+        *,
+        decode: bool = True,
     ) -> list:
         """Listen to a topic and return a list of message payloads received
         within the specified time. Requires a `Subscribe` to the same topic
-        on the same connection.
+        on the same connection. Use `Get Messages` to get each message's
+        topic, qos and other details too.
 
         Messages are queued from the moment of `Subscribe`, so none are lost
         between two calls. Fails if the connection is lost and no message is
@@ -626,6 +649,11 @@ class MQTTKeywords(object):
 
         ``alias`` the connection to use (see `Connect`)
 
+        ``decode`` returns payloads as strings decoded as UTF-8 (default).
+        ``${False}`` returns them as bytes, for binary payloads. With
+        ``${True}``, a payload that is not valid UTF-8 fails the keyword and
+        is dropped; the other messages stay queued. Must be given by name.
+
         Examples:
 
         Listen and get a list of all messages received within 5 seconds
@@ -635,12 +663,89 @@ class MQTTKeywords(object):
         | @{messages}= | Listen | test/test | timeout=60 | limit=1 |
         | Length should be | ${messages} | 1 |
         """
-        logger.info("Listening on topic: %s" % topic)
-        messages = self._connection(alias).listen(topic, _seconds(timeout), limit)
+        messages = self._take("Listening on", topic, timeout, limit, alias, decode)
+        return [message.payload for message in messages]
+
+    def get_messages(
+        self,
+        topic: str,
+        timeout: timedelta = "0 seconds",
+        limit: int = 0,
+        alias: Optional[str] = None,
+        decode: bool = True,
+    ) -> list:
+        """Return the messages queued for a topic as message objects, oldest
+        first, and remove them from the queue. Requires a `Subscribe` to the
+        same topic on the same connection.
+
+        Like `Listen`, but each message has the attributes ``topic`` (the
+        topic it was published to, which tells messages of a wildcard
+        subscription apart), ``payload``, ``qos``, ``retain``,
+        ``properties`` (a dictionary of MQTT 5 properties, empty for earlier
+        versions) and ``timestamp`` (when it arrived, in seconds since the
+        epoch). Returns an empty list, with a warning, if the topic has no
+        subscription.
+
+        ``topic`` the topic filter given to `Subscribe`
+
+        ``timeout`` how long to wait for messages. Default 0: return what is
+        queued now.
+
+        ``limit`` the most messages to return. Default 0: all of them. With
+        a ``timeout``, returns as soon as ``limit`` messages are queued, or
+        with 0 waits the whole ``timeout``.
+
+        ``alias`` the connection to use (see `Connect`)
+
+        ``decode`` decodes payloads as UTF-8 strings (default). ``${False}``
+        keeps them as bytes. See `Listen`.
+
+        Examples:
+
+        Tell the messages of a wildcard subscription apart by topic
+        | Subscribe | sensors/# | qos=1 | timeout=0 |
+        | ${messages}= | Get Messages | sensors/# | timeout=5 | limit=2 |
+        | Should Be Equal | ${messages[0].topic} | sensors/temperature |
+        | Should Be Equal | ${messages[0].payload} | 21.5 |
+
+        Get a binary payload as bytes
+        | ${messages}= | Get Messages | test/raw | timeout=5 | limit=1 |
+        | ... | decode=${False} |
+        | Should Be Equal | ${messages[0].payload} | ${{bytes([0, 255])}} |
+        """
+        return self._take("Getting messages on", topic, timeout, limit, alias, decode)
+
+    def _take(self, action, topic, timeout, limit, alias, decode):
+        logger.info("%s topic: %s" % (action, topic))
+        conn = self._connection(alias)
+        messages = conn.listen(topic, _seconds(timeout), limit, decode)
         if messages is None:
             logger.warn("Cannot listen when not subscribed to topic: %s" % topic)
             return []
         return messages
+
+    def clear_messages(self, topic: Optional[str] = None, alias: Optional[str] = None):
+        """Drop the messages queued for a topic, or without a topic every
+        message the connection has queued, including those that match no
+        subscription yet. Subscriptions stay as they are, and later messages
+        are queued as usual.
+
+        ``topic`` the topic filter given to `Subscribe`. Warns if the topic
+        has no subscription.
+
+        ``alias`` the connection to use (see `Connect`)
+
+        Examples:
+        | Clear Messages | test/test |
+        | Clear Messages |
+        """
+        count = self._connection(alias).clear(topic)
+        if count is None:
+            logger.warn(
+                "Cannot clear messages when not subscribed to topic: %s" % topic
+            )
+        else:
+            logger.info("Cleared %d messages" % count)
 
     def subscribe_and_validate(
         self,

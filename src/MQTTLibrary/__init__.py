@@ -57,7 +57,18 @@ class MQTTLibrary(MQTTKeywords):
     return the oldest messages first. ``limit`` caps how many a call returns;
     the rest stay queued for the next `Listen` on the same connection.
     ``limit=0`` returns everything that arrives within the timeout. Payloads
-    are returned as strings decoded as UTF-8.
+    are returned as strings decoded as UTF-8, or as bytes with
+    ``decode=${False}``.
+
+    `Get Messages` returns message objects instead of payloads, with the
+    attributes ``topic``, ``payload``, ``qos``, ``retain``, ``properties``
+    and ``timestamp``. `Clear Messages` empties the queues. Each queue keeps
+    at most ``max_queue`` messages (see importing); when it is full, the
+    oldest are dropped with a warning.
+
+    | Subscribe | sensors/# | qos=1 | timeout=0 |
+    | ${messages}= | Get Messages | sensors/# | timeout=5s | limit=1 |
+    | Log | ${messages[0].topic}: ${messages[0].payload} |
 
     = Timeouts =
 
