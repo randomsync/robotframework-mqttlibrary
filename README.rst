@@ -14,6 +14,33 @@ MQTTLibrary is a `Robot Framework`_ library that provides keywords for testing o
 .. _MQTT: http://mqtt.org/
 .. _paho: https://eclipse.org/paho/
 
+Features
+--------
+
+==================  ===========================================================  =====
+Feature             Keywords and arguments                                       Since
+==================  ===========================================================  =====
+Publish, subscribe  ``Publish``, ``Subscribe``, ``Listen``, ``Unsubscribe``,     0.x
+                    ``Publish Single``, ``Publish Multiple``
+Named connections   ``alias=``, ``Switch Connection``, ``Disconnect All``        1.0
+Message queues      messages kept from ``Connect`` until read, ``limit=``        1.0
+TLS                 ``Connect`` with ``ca_certs=``, ``certfile=``, ``keyfile=``  1.1
+                    and more; mutual TLS
+Websockets          ``Connect`` with ``transport=websockets``                    1.1
+MQTT 5              ``Connect`` with ``protocol=MQTTv5``, ``clean_start=``,      1.1
+                    ``session_expiry=``
+Credentials, will   ``Connect`` with ``username=``, ``password=``;               1.1
+                    ``Set Last Will``
+Reconnecting        ``Connect`` with ``reconnect_on_failure=``                   1.1
+Message objects     ``Get Messages`` (topic, payload, qos, retain, properties,   1.1
+                    timestamp), ``Clear Messages``
+Binary payloads     ``decode=${False}`` on ``Subscribe``, ``Listen``,            1.1
+                    ``Get Messages``
+Assertions          ``Wait Until Message Received``,                             1.1
+                    ``Message Count Should Be``, ``Payload Should Match``,
+                    ``Should Be Connected``, ``Should Not Be Connected``
+==================  ===========================================================  =====
+
 Installation
 ------------
 
@@ -30,11 +57,12 @@ Supported versions:
 =============  ==========  ===============  ============
 MQTTLibrary    Python      Robot Framework  paho-mqtt
 =============  ==========  ===============  ============
+1.1            3.9 - 3.14  4.1 and later    2.1 - 2.x
 1.0            3.9 - 3.14  4.1 and later    2.1 - 2.x
 0.7.2          3           not pinned       1.3 - 1.x
 =============  ==========  ===============  ============
 
-1.0 is tested with Robot Framework 4.1.3 and the latest 7.x.
+1.1 is tested with Robot Framework 4.1.3 and the latest 7.x.
 
 1.0 changes some keyword behaviour. See "Migrating from 0.7" in the `changelog <https://github.com/randomsync/robotframework-mqttlibrary/blob/master/CHANGELOG.md>`__ before upgrading.
 
@@ -86,6 +114,19 @@ Use named connections to subscribe and publish in one test. Messages are queued 
         Should Be Equal    ${messages}[0]    hello
         [Teardown]      Disconnect All
 
+Connect with TLS and wait for a message on a wildcard subscription. ``Wait Until Message Received`` returns the message, with its topic:
+
+.. code-block:: robotframework
+
+    *** Test Cases ***
+    Wait For A Status
+        Connect         broker.example.com    8883    ca_certs=${CURDIR}/ca.crt
+        ...             username=robot    password=secret
+        Subscribe       devices/+/status    qos=1    timeout=0
+        ${message}=     Wait Until Message Received    devices/+/status    ^online$
+        Should Be Equal    ${message.topic}    devices/robot/status
+        [Teardown]      Disconnect All
+
 
 Keyword documentation is available at https://randomsync.github.io/robotframework-mqttlibrary/. For 0.7.2, the last release for paho-mqtt 1, see https://randomsync.github.io/robotframework-mqttlibrary/0.7/.
 
@@ -110,17 +151,17 @@ You need Python 3.9 or later and Docker Engine 25 or later. The ``Makefile`` run
 Other targets:
 
 - ``make test-unit`` runs the unit tests in ``tests/unit``. They use pytest and a fake paho client, so they need no broker.
-- ``make test-acc`` runs the Robot Framework acceptance tests in ``tests/acceptance`` against the brokers: one without authentication, used by most tests, and one that requires a username and password.
+- ``make test-acc`` runs the Robot Framework acceptance tests in ``tests/acceptance`` against the brokers: one without authentication, used by most tests, one that requires a username and password (over TCP and websockets), and one with server and mutual TLS.
 - ``make lint`` runs ruff, builds the keyword documentation and dry-runs the acceptance suites.
 - ``make docs`` regenerates ``docs/index.html``.
 
 CI requires at least 90% combined coverage (see ``[tool.coverage]`` in ``pyproject.toml``).
 
-The acceptance tests read the broker addresses from environment variables, so they can run against other brokers: ``MQTT_HOST`` (default ``127.0.0.1``), ``MQTT_PORT`` (``1883``) and ``MQTT_AUTH_PORT`` (``11883``). For example::
+The acceptance tests read the broker addresses from environment variables, so they can run against other brokers: ``MQTT_HOST`` (default ``127.0.0.1``), ``MQTT_PORT`` (``1883``), ``MQTT_AUTH_PORT`` (``11883``), ``MQTT_WS_PORT`` (``9001``), ``MQTT_TLS_PORT`` (``8883``), ``MQTT_MTLS_PORT`` (``8884``) and ``MQTT_CERTS`` (``mosquitto/certs``). For example::
 
     MQTT_HOST=192.168.1.10 make test-acc
 
-The test credentials live in ``mosquitto/passwd_file``. To regenerate it, run ``scripts/gen-passwd.sh``.
+The test credentials live in ``mosquitto/passwd_file``. To regenerate it, run ``scripts/gen-passwd.sh``. ``make brokers`` creates the TLS test certificates in ``mosquitto/certs`` with ``scripts/gen-certs.sh`` (it needs ``openssl``); run ``scripts/gen-certs.sh --force`` to recreate them.
 
 .. _instructions: http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#creating-test-libraries
 
