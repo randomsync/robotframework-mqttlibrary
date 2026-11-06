@@ -111,6 +111,28 @@ def _tls_context(
     return context
 
 
+def _skipped(waited):
+    """What a failed wait took without a match, for its error message."""
+    parts = []
+    if waited.unmatched:
+        shown = ", ".join(_shorten(repr(payload)) for payload in waited.unmatched[:3])
+        more = len(waited.unmatched) - 3
+        parts.append(
+            "It took %d other messages: %s%s"
+            % (len(waited.unmatched), shown, ", ..." if more > 0 else "")
+        )
+    if waited.undecodable:
+        parts.append(
+            "It skipped %d messages that are not valid UTF-8; use "
+            "decode=${False} to match bytes" % waited.undecodable
+        )
+    return "".join(". " + part for part in parts)
+
+
+def _shorten(text, length=50):
+    return text if len(text) <= length else text[: length - 3] + "..."
+
+
 def _regex(pattern, binary=False):
     """Compile ``pattern``, as a bytes pattern for bytes payloads."""
     try:
@@ -159,6 +181,8 @@ class MQTTKeywords(object):
         self._max_queue = max_queue
         self._connections = {}
         self._alias = DEFAULT_ALIAS
+        # Aliases Disconnect closed, for Should Not Be Connected.
+        self._closed = set()
         self._username = None
         self._password = None
         self._will = None
@@ -503,6 +527,7 @@ class MQTTKeywords(object):
         )
         conn.open()
         self._connections[alias] = conn
+        self._closed.discard(alias)
         self._alias = alias
         self._will = None
 
@@ -802,7 +827,7 @@ class MQTTKeywords(object):
         conn.subscribe(topic, qos)
         # The same wait as Wait Until Message Received, matching from the
         # start of the payload as in 1.0.
-        if conn.wait(topic, regex.match, seconds) is None:
+        if conn.wait(topic, regex.match, seconds).message is None:
             raise AssertionError(
                 "The expected payload didn't arrive in the topic%s"
                 % conn.failure(topic)
@@ -823,11 +848,12 @@ class MQTTKeywords(object):
         topic on the same connection.
 
         Messages are taken from the queue oldest first, so a message that
-        arrived before this keyword was called counts too. The matching
-        message and the messages queued before it are removed; later ones
-        stay. Fails if none matches within ``timeout``, or as soon as the
+        arrived before this keyword was called counts too. Every message it
+        looks at is removed, up to and including the match; later ones stay.
+        Fails if none matches within ``timeout``, or as soon as the
         connection is lost, unless it was opened with
-        ``reconnect_on_failure=${True}``.
+        ``reconnect_on_failure=${True}``. The failure lists the first
+        messages it took that did not match.
 
         ``topic`` the topic filter given to `Subscribe`
 
@@ -851,24 +877,26 @@ class MQTTKeywords(object):
         | Should Be Equal | ${message.topic} | devices/robot/status |
         """
         seconds = _seconds(timeout)
-        if payload_pattern is None:
-
-            def matches(payload):
-                return True
-
-            wanted = "a message"
-        else:
-            matches = _regex(payload_pattern, binary=not decode).search
-            wanted = "a message matching '%s'" % payload_pattern
+        # The empty pattern matches any payload.
+        regex = _regex(payload_pattern or "", binary=not decode)
+        wanted = "a message"
+        if payload_pattern is not None:
+            wanted += " matching '%s'" % payload_pattern
         conn = self._connection(alias)
         logger.info("Waiting for %s on topic: %s" % (wanted, topic))
-        message = conn.wait(topic, matches, seconds, decode)
-        if message is None:
+        waited = conn.wait(topic, regex.search, seconds, decode)
+        if waited.message is None:
             raise AssertionError(
-                "Did not receive %s on %s within %s%s"
-                % (wanted, topic, secs_to_timestr(seconds), conn.failure(topic))
+                "Did not receive %s on %s within %s%s%s"
+                % (
+                    wanted,
+                    topic,
+                    secs_to_timestr(seconds),
+                    conn.failure(topic),
+                    _skipped(waited),
+                )
             )
-        return message
+        return waited.message
 
     def message_count_should_be(
         self, topic: str, count: int, alias: Optional[str] = None
@@ -892,13 +920,7 @@ class MQTTKeywords(object):
         | Wait Until Keyword Succeeds | 5s | 0.1s |
         | ... | Message Count Should Be | test/test | 1 |
         """
-        conn = self._connection(alias)
-        actual = conn.count(topic)
-        if actual is None:
-            raise RuntimeError(
-                "Not subscribed to %s on connection '%s'. Use Subscribe first."
-                % (topic, conn.alias)
-            )
+        actual = self._connection(alias).count(topic)
         if actual != count:
             raise AssertionError(
                 "Expected %d queued messages on %s, but found %d."
@@ -955,8 +977,9 @@ class MQTTKeywords(object):
 
     def should_not_be_connected(self, alias: Optional[str] = None):
         """Fail if a connection is connected to its broker. Passes for a
-        connection the broker dropped and for one that `Disconnect` closed
-        or that was never opened.
+        connection the broker dropped and for one that `Disconnect` closed.
+        Fails for an alias that was never connected, so a mistyped alias
+        does not pass unnoticed.
 
         ``alias`` the connection to check (see `Connect`)
 
@@ -965,8 +988,10 @@ class MQTTKeywords(object):
         | Should Not Be Connected | sub |
         """
         alias = alias or self._alias
-        conn = self._connections.get(alias)
-        if conn is not None and conn.info()["connected"]:
+        if alias in self._closed and alias not in self._connections:
+            return
+        conn = self._connection(alias)
+        if conn.info()["connected"]:
             raise AssertionError(
                 "Connection '%s' to %s is connected." % (alias, conn.address)
             )
@@ -1012,6 +1037,7 @@ class MQTTKeywords(object):
         if conn is None:
             logger.info("No MQTT connection found so nothing to disconnect from.")
             return
+        self._closed.add(alias)
         if not conn.close():
             logger.warn(
                 "The broker did not confirm the disconnect of %s "

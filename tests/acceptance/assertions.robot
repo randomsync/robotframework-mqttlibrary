@@ -41,7 +41,7 @@ Wait Until Message Received fails when no message matches
     Subscribe    ${TOPIC}    qos=1    timeout=0
     Publish    ${TOPIC}    stopped    qos=1
     Run Keyword And Expect Error
-    ...    Did not receive a message matching 'running' on ${TOPIC} within 1 second
+    ...    Did not receive a message matching 'running' on ${TOPIC} within 1 second. It took 1 other messages: 'stopped'
     ...    Wait Until Message Received    ${TOPIC}    running    timeout=1s
 
 Wait Until Message Received fails when the connection drops
@@ -108,6 +108,19 @@ Should Not Be Connected passes after Disconnect
     Connect    ${BROKER}    ${PORT}    alias=closed
     Disconnect    closed
     Should Not Be Connected    closed
+
+Should Not Be Connected fails for an alias that was never connected
+    Connect    ${BROKER}    ${PORT}    alias=publisher
+    Run Keyword And Expect Error    No connection with alias 'pubisher'.*
+    ...    Should Not Be Connected    pubisher
+
+Wait Until Message Received points to decode for a binary payload
+    Connect    ${BROKER}    ${PORT}
+    Subscribe    ${TOPIC}    qos=1    timeout=0
+    Publish    ${TOPIC}    ${{bytes([255])}}    qos=1
+    Run Keyword And Expect Error
+    ...    Did not receive a message on ${TOPIC} within 1 second. It skipped 1 messages that are not valid UTF-8; use decode=\${False} to match bytes
+    ...    Wait Until Message Received    ${TOPIC}    timeout=1s
 
 Should Not Be Connected fails for an open connection
     Connect    ${BROKER}    ${PORT}    alias=open

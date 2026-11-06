@@ -80,9 +80,55 @@ def test_wait_failure_names_the_topic_pattern_and_timeout(lib, client):
     client.fire_message("a", "no")
     with pytest.raises(
         AssertionError,
-        match=r"^Did not receive a message matching 'yes' on a within 50 milliseconds$",
+        match=r"^Did not receive a message matching 'yes' on a within 50 "
+        r"milliseconds\. It took 1 other messages: 'no'$",
     ):
         lib.wait_until_message_received("a", "yes", timeout="0.05 s")
+
+
+def test_wait_failure_lists_the_first_messages_it_took(lib, client):
+    lib.subscribe("a", 1, timeout=0)
+    client.fire_message("a", "x" * 60)
+    for payload in ("two", "three", "four"):
+        client.fire_message("a", payload)
+    with pytest.raises(AssertionError) as failure:
+        lib.wait_until_message_received("a", "yes", timeout=0)
+    assert str(failure.value).endswith(
+        ". It took 4 other messages: '%s..., 'two', 'three', ..." % ("x" * 46)
+    )
+
+
+def test_wait_failure_points_to_decode_for_binary_payloads(lib, client):
+    lib.subscribe("a", 1, timeout=0)
+    client.fire_message("a", b"\x00\xff")
+    with pytest.raises(
+        AssertionError,
+        match=r"within 0 seconds\. It skipped 1 messages that are not valid "
+        r"UTF-8; use decode=\$\{False\} to match bytes$",
+    ):
+        lib.wait_until_message_received("a", timeout=0)
+
+
+def test_wait_matches_outside_the_lock(lib, client):
+    lib.subscribe("a", 1, timeout=0)
+    client.fire_message("a", "one")
+    conn = lib._connections["default"]
+    acquired = []
+
+    def matches(payload):
+        # From another thread, since the lock is reentrant.
+        def try_lock():
+            if conn._cond.acquire(timeout=1):
+                acquired.append(True)
+                conn._cond.release()
+
+        thread = threading.Thread(target=try_lock)
+        thread.start()
+        thread.join()
+        return True
+
+    assert conn.wait("a", matches, 0).message.payload == "one"
+    assert acquired == [True]
 
 
 def test_wait_failure_without_a_pattern(lib, client):
@@ -280,10 +326,31 @@ def test_should_be_connected_without_a_connection_fails(lib):
         lib.should_be_connected("gone")
 
 
-def test_should_not_be_connected_without_a_connection_passes(lib, client):
-    lib.should_not_be_connected("never")
+def test_should_not_be_connected_after_disconnect_passes(lib, client):
     lib.disconnect()
     lib.should_not_be_connected()
+    lib.should_not_be_connected("default")
+
+
+def test_should_not_be_connected_after_disconnect_all_passes(lib, fake):
+    lib.connect("broker.test", alias="one")
+    lib.connect("broker.test", alias="two")
+    lib.disconnect_all()
+    lib.should_not_be_connected("one")
+    lib.should_not_be_connected("two")
+
+
+def test_should_not_be_connected_for_an_unknown_alias_fails(lib, client):
+    # A mistyped alias must not pass.
+    with pytest.raises(RuntimeError, match="^No connection with alias 'defualt'"):
+        lib.should_not_be_connected("defualt")
+
+
+def test_should_not_be_connected_after_reconnecting_an_alias(lib, client):
+    lib.disconnect()
+    lib.connect("broker.test")
+    with pytest.raises(AssertionError, match="is connected"):
+        lib.should_not_be_connected()
 
 
 def test_should_not_be_connected_names_the_alias(lib, fake):
