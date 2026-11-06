@@ -70,6 +70,18 @@ class MQTTLibrary(MQTTKeywords):
     | ${messages}= | Get Messages | sensors/# | timeout=5s | limit=1 |
     | Log | ${messages[0].topic}: ${messages[0].payload} |
 
+    = Assertions =
+
+    `Wait Until Message Received` waits for a message, optionally one whose
+    payload matches a regular expression, and returns it.
+    `Message Count Should Be` checks how many messages are queued,
+    `Payload Should Match` checks a payload, and `Should Be Connected` and
+    `Should Not Be Connected` check a connection.
+
+    | Subscribe | devices/robot/status | qos=1 | timeout=0 |
+    | ${message}= | Wait Until Message Received | devices/robot/status | ^online$ |
+    | Should Be Connected |
+
     = Timeouts =
 
     Arguments named ``timeout`` take Robot Framework time strings such as

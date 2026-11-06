@@ -46,13 +46,6 @@ Thread Count Should Be
     ${count}=    Evaluate    threading.active_count()    modules=threading
     Should Be Equal As Integers    ${count}    ${expected}
 
-Connected Should Be
-    [Documentation]    Fails unless `Get Connection Info` reports
-    ...    ``connected`` as ``expected``.
-    [Arguments]    ${expected}    ${alias}=${None}
-    ${info}=    Get Connection Info    ${alias}
-    Should Be Equal    ${info}[connected]    ${expected}
-
 Take Over Session
     [Documentation]    Connects with ``client`` and disconnects at once. The
     ...    broker drops the connection that had the same client id, as if

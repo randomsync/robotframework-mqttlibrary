@@ -492,8 +492,12 @@ def test_subscribe_and_validate_waits_through_a_reconnect(lib, fake):
     client = fake.instances[-1]
     client.fire_disconnect(reason(PacketTypes.DISCONNECT, "Unspecified error"))
     lib.subscribe("a", 1, timeout=0)
+    # It waits out the timeout instead of failing at the drop, and says the
+    # connection was down.
     with pytest.raises(
-        AssertionError, match="^The expected payload didn't arrive in the topic$"
+        AssertionError,
+        match=r"^The expected payload didn't arrive in the topic "
+        r"\(connection lost: Unspecified error\)$",
     ):
         lib.subscribe_and_validate("a", 1, "x", timeout=0.01)
 

@@ -33,7 +33,7 @@ A path and headers are sent with the handshake
     Connect    ${BROKER}    ${WS PORT}    transport=websockets
     ...    ws_path=/custom    ws_headers=${headers}
     ...    username=authuser1    password=password1
-    Connected Should Be    ${True}
+    Should Be Connected
 
 Websockets with wrong credentials fails with the broker's reason
     Run Keyword And Expect Error

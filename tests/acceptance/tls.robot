@@ -27,7 +27,7 @@ A protected client key is decrypted with keyfile_password
     Connect    ${BROKER}    ${MTLS PORT}    ca_certs=${CERTS}/ca.crt
     ...    certfile=${CERTS}/client.crt    keyfile=${CERTS}/client-encrypted.key
     ...    keyfile_password=client-key-password
-    Connected Should Be    ${True}
+    Should Be Connected
 
 A wrong key password fails before connecting
     Run Keyword And Expect Error
@@ -63,8 +63,8 @@ TLS version can be pinned
     ...    tls_version=TLSv1.2    alias=v12
     Connect    ${BROKER}    ${TLS PORT}    ca_certs=${CERTS}/ca.crt
     ...    tls_version=TLSv1.3    alias=v13
-    Connected Should Be    ${True}    v12
-    Connected Should Be    ${True}    v13
+    Should Be Connected    v12
+    Should Be Connected    v13
 
 MQTT 5 works over TLS
     Connect    ${BROKER}    ${TLS PORT}    ca_certs=${CERTS}/ca.crt

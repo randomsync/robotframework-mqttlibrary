@@ -16,7 +16,6 @@ import collections
 import copy
 import dataclasses
 import logging
-import re
 import threading
 import time
 from typing import Union
@@ -77,6 +76,16 @@ class _Copies(object):
         self.qos = qos
         # [filter, queue, the Message queued for it]
         self.entries = entries
+
+
+class _Waited(object):
+    """What `_Connection.wait()` found: the matching message, or None, and
+    the payloads it took that did not match or were not valid UTF-8."""
+
+    def __init__(self):
+        self.message = None
+        self.unmatched = []
+        self.undecodable = 0
 
 
 class _Queue(collections.deque):
@@ -408,35 +417,66 @@ class _Connection(object):
                 queue.popleft()
             return messages
 
-    def validate(self, topic, pattern, timeout):
-        """Take messages from ``topic`` until one matches ``pattern``.
+    def wait(self, topic, matches, timeout, decode=True):
+        """Take messages from ``topic`` until ``matches(payload)`` is true
+        for one.
 
-        Returns True on a match. Returns False if none arrives within
-        ``timeout``, and raises AssertionError if the connection is lost
-        first and reconnecting is off. Messages that do not match, including
-        ones that are not valid UTF-8, are consumed.
+        Payloads are decoded as UTF-8 first unless ``decode`` is False;
+        messages that are not valid UTF-8 are skipped. Every message looked
+        at is taken from the queue, up to and including the match; later
+        ones stay. Gives up after ``timeout``, or when the connection is
+        lost (unless reconnecting is on) or the broker refuses the
+        subscription after a reconnect; `failure()` then says which.
+        Returns a _Waited with the match, or None, and what was skipped.
+        Raises if ``topic`` is not a registered filter.
+
+        The lock is held only to take each message: decoding and matching,
+        which runs the caller's regular expression, happen outside it, so a
+        slow pattern cannot hold up the network thread.
         """
         deadline = time.monotonic() + timeout
+        waited = _Waited()
         with self._cond:
-            queue = self._filters[topic]
-            while True:
+            queue = self._queue(topic)
+        while True:
+            with self._cond:
                 self._warn_dropped(topic, queue)
-                while queue:
-                    try:
-                        payload = _decode(queue.popleft())
-                    except UnicodeDecodeError:
-                        continue
-                    if re.match(pattern, payload):
-                        return True
-                if self._gone():
-                    raise AssertionError(
-                        "The expected payload didn't arrive "
-                        "in the topic%s" % self._lost()
-                    )
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    return False
-                self._cond.wait(remaining)
+                while not queue:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or self._gone() or topic in self._refused:
+                        return waited
+                    self._cond.wait(remaining)
+                message = queue.popleft()
+            if decode:
+                try:
+                    message = dataclasses.replace(message, payload=_decode(message))
+                except UnicodeDecodeError:
+                    waited.undecodable += 1
+                    continue
+            if matches(message.payload):
+                waited.message = message
+                return waited
+            waited.unmatched.append(message.payload)
+
+    def count(self, topic):
+        """How many messages are queued for ``topic``. Raises if it is not
+        a registered filter."""
+        with self._cond:
+            queue = self._queue(topic)
+            self._warn_dropped(topic, queue)
+            return len(queue)
+
+    def failure(self, topic):
+        """Why waits on ``topic`` end early, as a suffix for an error
+        message: the broker refused the subscription after a reconnect, or
+        the connection is lost. Empty if neither."""
+        with self._cond:
+            if topic in self._refused:
+                return (
+                    " (the broker refused the subscription after a reconnect: "
+                    "%s)" % self._refused[topic]
+                )
+            return self._lost()
 
     def clear(self, topic=None):
         """Drop the messages queued for ``topic``, or without a topic every
@@ -526,6 +566,17 @@ class _Connection(object):
                 "were queued" % (queue.dropped, where, queue.maxlen)
             )
             queue.dropped = 0
+
+    def _queue(self, topic):
+        """The queue of filter ``topic``. Raises if it is not registered.
+        Holds the lock."""
+        queue = self._filters.get(topic)
+        if queue is None:
+            raise RuntimeError(
+                "Not subscribed to %s on connection '%s'. Use Subscribe first."
+                % (topic, self.alias)
+            )
+        return queue
 
     def _renewed(self, topics, codes):
         """Record the renewed subscriptions the broker refused. Holds the
