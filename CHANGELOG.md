@@ -40,6 +40,10 @@ Progress towards the next releases is tracked in
   ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
 - A `max_queue` library argument sets how many messages each queue keeps
   (default 10000) ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
+- Assertion keywords: `Wait Until Message Received` waits for a message,
+  optionally matching a regular expression, and returns it;
+  `Message Count Should Be`, `Payload Should Match`, `Should Be Connected`
+  and `Should Not Be Connected` ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
 - `Publish` returns the message id ([#48](https://github.com/randomsync/robotframework-mqttlibrary/issues/48)).
 - A TLS test broker with server TLS on port 8883 and mutual TLS on 8884.
   `scripts/gen-certs.sh` creates its certificates, and `make brokers` runs it

@@ -16,7 +16,6 @@ import collections
 import copy
 import dataclasses
 import logging
-import re
 import threading
 import time
 from typing import Union
@@ -408,35 +407,67 @@ class _Connection(object):
                 queue.popleft()
             return messages
 
-    def validate(self, topic, pattern, timeout):
-        """Take messages from ``topic`` until one matches ``pattern``.
+    def wait(self, topic, matches, timeout, decode=True):
+        """Take messages from ``topic`` until ``matches(payload)`` is true
+        for one, and return that message.
 
-        Returns True on a match. Returns False if none arrives within
-        ``timeout``, and raises AssertionError if the connection is lost
-        first and reconnecting is off. Messages that do not match, including
-        ones that are not valid UTF-8, are consumed.
+        Payloads are decoded as UTF-8 first unless ``decode`` is False;
+        messages that are not valid UTF-8 are skipped. The matching message
+        and every message before it are taken from the queue; later ones
+        stay. Returns None if no message matches within ``timeout``, or
+        before the connection is lost (unless reconnecting is on) or the
+        broker refuses the subscription after a reconnect; `failure()` then
+        says which. Raises if ``topic`` is not a registered filter.
         """
         deadline = time.monotonic() + timeout
         with self._cond:
-            queue = self._filters[topic]
+            queue = self._filters.get(topic)
+            if queue is None:
+                raise RuntimeError(
+                    "Not subscribed to %s on connection '%s'. Use Subscribe "
+                    "first." % (topic, self.alias)
+                )
             while True:
                 self._warn_dropped(topic, queue)
                 while queue:
-                    try:
-                        payload = _decode(queue.popleft())
-                    except UnicodeDecodeError:
-                        continue
-                    if re.match(pattern, payload):
-                        return True
-                if self._gone():
-                    raise AssertionError(
-                        "The expected payload didn't arrive "
-                        "in the topic%s" % self._lost()
-                    )
+                    message = queue.popleft()
+                    if decode:
+                        try:
+                            message = dataclasses.replace(
+                                message, payload=_decode(message)
+                            )
+                        except UnicodeDecodeError:
+                            continue
+                    if matches(message.payload):
+                        return message
+                if self._gone() or topic in self._refused:
+                    return None
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    return False
+                    return None
                 self._cond.wait(remaining)
+
+    def count(self, topic):
+        """How many messages are queued for ``topic``, or None if it is not
+        a registered filter."""
+        with self._cond:
+            queue = self._filters.get(topic)
+            if queue is None:
+                return None
+            self._warn_dropped(topic, queue)
+            return len(queue)
+
+    def failure(self, topic):
+        """Why waits on ``topic`` end early, as a suffix for an error
+        message: the broker refused the subscription after a reconnect, or
+        the connection is lost. Empty if neither."""
+        with self._cond:
+            if topic in self._refused:
+                return (
+                    " (the broker refused the subscription after a reconnect: "
+                    "%s)" % self._refused[topic]
+                )
+            return self._lost()
 
     def clear(self, topic=None):
         """Drop the messages queued for ``topic``, or without a topic every

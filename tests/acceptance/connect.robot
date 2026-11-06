@@ -199,7 +199,7 @@ Disconnect while reconnecting stops without failing
     ...    reconnect_delay_min=5    alias=victim
     Take Over Session    ${CLIENT}
     Wait Until Keyword Succeeds    2s    0.05s
-    ...    Connected Should Be    ${False}    victim
+    ...    Should Not Be Connected    victim
     Disconnect    victim
     Run Keyword And Expect Error    No connection with alias 'victim'.*
     ...    Get Connection Info    victim
@@ -222,9 +222,9 @@ A dropped connection reconnects and subscribes again
     Subscribe    ${TOPIC}    qos=1    timeout=0    alias=victim
     Connect    ${BROKER}    ${PORT}    ${CLIENT}    alias=thief
     Wait Until Keyword Succeeds    2s    0.05s
-    ...    Connected Should Be    ${False}    victim
+    ...    Should Not Be Connected    victim
     Disconnect    thief
     Wait Until Keyword Succeeds    10s    0.2s
-    ...    Connected Should Be    ${True}    victim
+    ...    Should Be Connected    victim
     Publish And Disconnect    ${TOPIC}    after reconnecting    qos=1
     Listen Should Return    ${TOPIC}    after reconnecting    alias=victim

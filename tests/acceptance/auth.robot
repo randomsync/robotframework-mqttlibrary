@@ -44,7 +44,7 @@ Credentials on Connect take precedence over Set Username And Password
     Set Username And Password    authuser1    invalidpwd
     Connect    ${BROKER}    ${AUTH PORT}    username=authuser2
     ...    password=password2
-    Connected Should Be    ${True}
+    Should Be Connected
 
 A wrong password on Connect fails with the broker's reason
     Run Keyword And Expect Error

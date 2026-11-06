@@ -1,3 +1,4 @@
+import re
 import ssl
 from datetime import timedelta
 from typing import Any, Optional, Union
@@ -6,6 +7,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 from robot.api import logger
 from robot.libraries.DateTime import convert_time
+from robot.utils import secs_to_timestr
 
 from MQTTLibrary.connection import QUEUE_LIMIT, _Connection
 
@@ -107,6 +109,16 @@ def _tls_context(
     if version is not None:
         context.minimum_version = context.maximum_version = version
     return context
+
+
+def _regex(pattern, binary=False):
+    """Compile ``pattern``, as a bytes pattern for bytes payloads."""
+    try:
+        return re.compile(pattern.encode("utf-8") if binary else pattern)
+    except re.error as exc:
+        raise ValueError(
+            "Invalid regular expression '%s': %s" % (pattern, exc)
+        ) from None
 
 
 # Timeout arguments are annotated timedelta so Robot Framework converts and
@@ -784,11 +796,180 @@ class MQTTKeywords(object):
         | Subscribe And Validate | test/test | 1 | test message |
         """
         seconds = _seconds(timeout)
+        regex = _regex(payload)
         conn = self._connection(alias)
         logger.info("Subscribing to topic: %s" % topic)
         conn.subscribe(topic, qos)
-        if not conn.validate(topic, payload, seconds):
-            raise AssertionError("The expected payload didn't arrive in the topic")
+        # The same wait as Wait Until Message Received, matching from the
+        # start of the payload as in 1.0.
+        if conn.wait(topic, regex.match, seconds) is None:
+            raise AssertionError(
+                "The expected payload didn't arrive in the topic%s"
+                % conn.failure(topic)
+            )
+
+    def wait_until_message_received(
+        self,
+        topic: str,
+        payload_pattern: Optional[str] = None,
+        timeout: timedelta = "5 seconds",
+        alias: Optional[str] = None,
+        *,
+        decode: bool = True,
+    ):
+        """Wait until a message on a topic arrives, optionally one whose
+        payload matches a regular expression, and return it as a message
+        object (see `Get Messages`). Requires a `Subscribe` to the same
+        topic on the same connection.
+
+        Messages are taken from the queue oldest first, so a message that
+        arrived before this keyword was called counts too. The matching
+        message and the messages queued before it are removed; later ones
+        stay. Fails if none matches within ``timeout``, or as soon as the
+        connection is lost, unless it was opened with
+        ``reconnect_on_failure=${True}``.
+
+        ``topic`` the topic filter given to `Subscribe`
+
+        ``payload_pattern`` a Python regular expression searched for
+        anywhere in the payload; use ``^`` and ``$`` to match all of it.
+        Without one, any message matches.
+
+        ``timeout`` how long to wait (default 5 seconds)
+
+        ``alias`` the connection to use (see `Connect`)
+
+        ``decode`` decodes payloads as UTF-8 (default) and skips those that
+        are not valid UTF-8. ``${False}`` matches the pattern against the
+        raw bytes and returns the payload as bytes. Must be given by name.
+
+        Examples:
+        | Subscribe | devices/robot/status | qos=1 | timeout=0 |
+        | Publish | devices/robot/command | start |
+        | ${message}= | Wait Until Message Received | devices/robot/status |
+        | ... | ^running$ | timeout=10s |
+        | Should Be Equal | ${message.topic} | devices/robot/status |
+        """
+        seconds = _seconds(timeout)
+        if payload_pattern is None:
+
+            def matches(payload):
+                return True
+
+            wanted = "a message"
+        else:
+            matches = _regex(payload_pattern, binary=not decode).search
+            wanted = "a message matching '%s'" % payload_pattern
+        conn = self._connection(alias)
+        logger.info("Waiting for %s on topic: %s" % (wanted, topic))
+        message = conn.wait(topic, matches, seconds, decode)
+        if message is None:
+            raise AssertionError(
+                "Did not receive %s on %s within %s%s"
+                % (wanted, topic, secs_to_timestr(seconds), conn.failure(topic))
+            )
+        return message
+
+    def message_count_should_be(
+        self, topic: str, count: int, alias: Optional[str] = None
+    ):
+        """Fail unless exactly ``count`` messages are queued for a topic.
+        Requires a `Subscribe` to the same topic on the same connection.
+        Messages stay queued.
+
+        It checks once, so messages still on their way are not counted. To
+        wait for them, use it with BuiltIn's `Wait Until Keyword Succeeds`.
+
+        ``topic`` the topic filter given to `Subscribe`
+
+        ``count`` the expected number of queued messages
+
+        ``alias`` the connection to use (see `Connect`)
+
+        Examples:
+        | Subscribe | test/test | qos=1 | timeout=0 |
+        | Publish | test/test | one | qos=1 |
+        | Wait Until Keyword Succeeds | 5s | 0.1s |
+        | ... | Message Count Should Be | test/test | 1 |
+        """
+        conn = self._connection(alias)
+        actual = conn.count(topic)
+        if actual is None:
+            raise RuntimeError(
+                "Not subscribed to %s on connection '%s'. Use Subscribe first."
+                % (topic, conn.alias)
+            )
+        if actual != count:
+            raise AssertionError(
+                "Expected %d queued messages on %s, but found %d."
+                % (count, topic, actual)
+            )
+
+    def payload_should_match(self, message: Any, pattern: str):
+        """Fail unless the payload of a message matches a regular
+        expression.
+
+        ``message`` a message object from `Get Messages` or
+        `Wait Until Message Received`, or a payload from `Listen` or
+        `Subscribe`
+
+        ``pattern`` a Python regular expression searched for anywhere in the
+        payload; use ``^`` and ``$`` to match all of it. A bytes payload is
+        matched as bytes.
+
+        Examples:
+        | ${messages}= | Get Messages | sensors/# | timeout=5 | limit=1 |
+        | Payload Should Match | ${messages}[0] | ^\\d+(\\.\\d+)?$ |
+        """
+        payload = getattr(message, "payload", message)
+        if not isinstance(payload, (str, bytes, bytearray)):
+            raise ValueError(
+                "Expected a message or a payload, not %s." % type(message).__name__
+            )
+        binary = isinstance(payload, (bytes, bytearray))
+        if not _regex(pattern, binary).search(payload):
+            topic = getattr(message, "topic", None)
+            where = "" if topic is None else " of the message on %s" % topic
+            raise AssertionError(
+                "Payload%s %r does not match '%s'." % (where, payload, pattern)
+            )
+
+    def should_be_connected(self, alias: Optional[str] = None):
+        """Fail unless a connection is open and connected to its broker.
+
+        Fails, with the reason if the broker gave one, after the broker
+        drops the connection.
+
+        ``alias`` the connection to check (see `Connect`)
+
+        Example:
+        | Connect | 127.0.0.1 | alias=sub |
+        | Should Be Connected | sub |
+        """
+        conn = self._connection(alias)
+        if not conn.info()["connected"]:
+            raise AssertionError(
+                "Connection '%s' to %s is not connected%s."
+                % (conn.alias, conn.address, conn.failure(None))
+            )
+
+    def should_not_be_connected(self, alias: Optional[str] = None):
+        """Fail if a connection is connected to its broker. Passes for a
+        connection the broker dropped and for one that `Disconnect` closed
+        or that was never opened.
+
+        ``alias`` the connection to check (see `Connect`)
+
+        Example:
+        | Disconnect | sub |
+        | Should Not Be Connected | sub |
+        """
+        alias = alias or self._alias
+        conn = self._connections.get(alias)
+        if conn is not None and conn.info()["connected"]:
+            raise AssertionError(
+                "Connection '%s' to %s is connected." % (alias, conn.address)
+            )
 
     def unsubscribe(self, topic: str, alias: Optional[str] = None):
         """Unsubscribe the client from the specified topic. Messages still
